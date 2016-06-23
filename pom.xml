@@ -4,7 +4,7 @@
 
   <groupId>com.deviantart</groupId>
   <artifactId>kafka-connect-s3</artifactId>
-  <version>0.1.0</version>
+  <version>0.1.0-sf1</version>
   <packaging>jar</packaging>
 
   <name>kafka-connect-s3</name>
