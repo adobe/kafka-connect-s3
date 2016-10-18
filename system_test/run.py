@@ -38,13 +38,6 @@ g_s3_conn = S3Connection('foo', 'bar', is_secure=False, port=9090, host='localho
                         calling_format=OrdinaryCallingFormat())
 
 
-def connect_version():
-    # quick hack to get version from pom.
-    tree = ET.parse(os.path.join(this_dir, '..', 'pom.xml'))
-    root = tree.getroot()
-    version = root.find('{http://maven.apache.org/POM/4.0.0}version').text
-    return version
-
 # requires proc to be Popened with stdout=subprocess.PIPE,stderr=subprocess.STDOUT
 def dumpServerStdIO(proc, msg, until=None, until_fail=None, timeout=None, trim_indented=False, post_fail_lines=20):
     sys.stdout.write(msg + os.linesep)
@@ -153,9 +146,8 @@ def tearDownModule():
 
 def runS3ConnectStandalone(worker_props ='system-test-worker.properties', sink_props ='system-test-s3-sink.properties', debug=False):
     global g_s3connect_proc
-    version = connect_version()
     env = {
-        'CLASSPATH': os.path.join(this_dir, '../target/kafka-connect-s3-{}-shaded.jar'.format(version))
+        'CLASSPATH': os.path.join(this_dir, 'build/libs/system_test-all.jar')
     }
     if debug:
         env['KAFKA_JMX_OPTS'] = '-agentlib:jdwp=transport=dt_socket,server=y,address=8000,suspend=y'
@@ -371,12 +363,11 @@ class TestConnectS3(unittest.TestCase):
         self.assertTrue(ok, msg="Didn't get success message but did get: {}".format(line))
 
         # run the reader to dump what we just wrote
-        version = connect_version()
         env = {
-            'CLASSPATH': os.path.join(this_dir, '../target/kafka-connect-s3-{}-shaded.jar'.format(version))
+            'CLASSPATH': os.path.join(this_dir, 'build/libs/system_test-all.jar')
         }
         cmd = [os.path.join(this_dir, 'standalone-kafka/kafka/bin/kafka-run-class.sh'),
-               "com.deviantart.kafka_connect_s3.S3FilesReader",
+               "com.spredfast.kafka.connect.s3.source.S3FilesReader",
                os.path.join(this_dir, 'system-test-s3-binary-sink.properties')]
 
         self.assertEqual(expected_data, subprocess.check_output(cmd, env=env))

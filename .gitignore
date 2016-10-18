@@ -1,5 +1,5 @@
-target
+build/
 local-*
-dependency-reduced-pom.xml
 .idea
 *.iml
+.gradle

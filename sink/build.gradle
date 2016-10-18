@@ -1,0 +1,8 @@
+description = "Kafka Connect Sink that writes to S3"
+
+dependencies {
+    compile project(':common')
+
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+    testCompile group: 'org.mockito', name: 'mockito-all', version: '1.9.5'
+}

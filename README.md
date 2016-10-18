@@ -1,16 +1,20 @@
-# Kafka Connect S3 Sink
+# Kafka Connect S3
 
-This is a [kafka-connect](http://kafka.apache.org/documentation.html#connect) sink for Amazon S3, but without any dependency on HDFS/hadoop libs or data formats.
+This is a [kafka-connect](http://kafka.apache.org/documentation.html#connect) sink and source for Amazon S3, but without any dependency on HDFS/hadoop libs or data formats.
 
-## Status
+## Spredfast Fork
 
-This is pre-production code. Use at your own risk.
+This is a hard fork of the [S3 Sink created by DeviantArt](https://github.com/DeviantArt/kafka-connect-s3).
 
-That said, we've put some effort into a reasonably thorough test suite and will be putting it into production shortly. We will update this notice when we have it running smoothly in production.
+Notable differences:
+ * Requires Java 8+
+ * Requires Kafka 0.10.0+
+ * Supports Binary Output
+ * Provides a Source for reading data back from S3
+ * Repackaged and built with Gradle
 
-If you use it, you will likely find issues or ways it can be improved. Please feel free to create pull requests/issues and we will do our best to merge anything that helps overall (especially if it has passing tests ;)).
-
-This was built against Kafka 0.9.0.1.
+We are very grateful to the DeviantArt team for their original work.
+We made the decision to hard fork when it became clear that we would be responsible for ongoing maintenance.
 
 ## Block-GZIP Output Format
 
@@ -98,12 +102,12 @@ Example connect-s3-sink.properties:
 
 ```
 # If you specify a key converter, keys will also be written before each value.
-key.converter=com.deviantart.kafka_connect_s3.ToStringWithDelimiterConverter
+key.converter=com.spredfast.kafka.connect.s3.ToStringWithDelimiterConverter
 key.converter.encoding=UTF-16
 key.converter.delimiter=:
 
 # This is the default value converter and does not need to be specified, but can be configured.
-# value.converter=com.deviantart.kafka_connect_s3.ToStringWithDelimiterConverter
+# value.converter=com.spredfast.kafka.connect.s3.ToStringWithDelimiterConverter
 value.converter.encoding=UTF-8 # default
 value.converter.delimiter=\n # newline is the default
 ```
@@ -121,16 +125,16 @@ To get binary output, you'll need to configure your Connect cluster to use raw b
 
 connect-worker.properties:
 ```
-key.converter=com.deviantart.kafka_connect_s3.ByteLengthEncodedConverter
-value.converter=com.deviantart.kafka_connect_s3.ByteLengthEncodedConverter
+key.converter=com.spredfast.kafka.connect.s3.ByteLengthEncodedConverter
+value.converter=com.spredfast.kafka.connect.s3.ByteLengthEncodedConverter
 ```
 
 connect-s3-sink.properties:
 
 ```
 # if you don't want keys, remove the key.converter line from the sink properties
-key.converter=com.deviantart.kafka_connect_s3.ByteLengthEncodedConverter
-value.converter=com.deviantart.kafka_connect_s3.ByteLengthEncodedConverter
+key.converter=com.spredfast.kafka.connect.s3.ByteLengthEncodedConverter
+value.converter=com.spredfast.kafka.connect.s3.ByteLengthEncodedConverter
 ```
 
 Note that both files need the converters to be specified.
@@ -158,10 +162,10 @@ value.converter.config.value=something
 connect-s3-sink.properties:
 
 ```
-key.converter=com.deviantart.kafka_connect_s3.ByteLengthEncodedConverter
+key.converter=com.spredfast.kafka.connect.s3.ByteLengthEncodedConverter
 key.converter.converter=key.converter=com.whatever.Converter
 
-value.converter=com.deviantart.kafka_connect_s3.ByteLengthEncodedConverter
+value.converter=com.spredfast.kafka.connect.s3.ByteLengthEncodedConverter
 value.converter.converter=com.whatever.OtherConverter
 value.converter.converter.config.value=something
 ```

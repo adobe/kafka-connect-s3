@@ -37,7 +37,10 @@ Kafka must be accessible on `localhost:9092`.
 Run it with:
 
 ```
-$ docker run -d --net=host -e HOSTNAME=localhost deviantart/standalone-kafka
+docker run -d --net=host -e HOSTNAME=localhost deviantart/standalone-kafka
+
+# Docker for Mac, or Linux
+docker run -d  -p 127.0.0.1:9092:9092 -p 127.0.0.1:2181:2181  deviantart/standalone-kafka
 ```
 
 The `name` param means you can use `$ docker kill kafka` when you're done.
@@ -62,5 +65,6 @@ The same should work with regular ssh for a non-docker machine VM.
 From the repo root dir, run:
 
 ```
-$ python system_test/run.py
+./gradlew shadowJar
+python system_test/run.py
 ```

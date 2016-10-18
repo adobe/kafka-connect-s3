@@ -1,0 +1,9 @@
+description = "Kafka Connect Source that reads from S3"
+
+dependencies {
+	compile project(':common')
+
+	testCompile project(':sink')
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+    testCompile group: 'org.mockito', name: 'mockito-all', version: '1.9.5'
+}
