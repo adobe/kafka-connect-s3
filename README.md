@@ -1,16 +1,20 @@
-# Kafka Connect S3 Sink
+# Kafka Connect S3
 
-This is a [kafka-connect](http://kafka.apache.org/documentation.html#connect) sink for Amazon S3, but without any dependency on HDFS/hadoop libs or data formats.
+This is a [kafka-connect](http://kafka.apache.org/documentation.html#connect) sink and source for Amazon S3, but without any dependency on HDFS/hadoop libs or data formats.
 
-## Status
+## Spredfast Fork
 
-This is pre-production code. Use at your own risk.
+This is a hard fork of the [S3 Sink created by DeviantArt](https://github.com/DeviantArt/kafka-connect-s3).
 
-That said, we've put some effort into a reasonably thorough test suite and will be putting it into production shortly. We will update this notice when we have it running smoothly in production.
+Notable differences:
+ * Requires Java 8+
+ * Requires Kafka 0.10.0+
+ * Supports Binary Output
+ * Provides a Source for reading data back from S3
+ * Repackaged and built with Gradle
 
-If you use it, you will likely find issues or ways it can be improved. Please feel free to create pull requests/issues and we will do our best to merge anything that helps overall (especially if it has passing tests ;)).
-
-This was built against Kafka 0.9.0.1.
+We are very grateful to the DeviantArt team for their original work.
+We made the decision to hard fork when it became clear that we would be responsible for ongoing maintenance.
 
 ## Block-GZIP Output Format
 
@@ -88,13 +92,99 @@ $ cat system-test-00000-000000000000.index.json | jq -M '.'
 
 ## Other Formats
 
+### Text Format
+
 For now we only support Block-GZIP output. This assumes that all your kafka messages can be output as newline-delimited text files.
 
-We could make the output format pluggable if others have use for this connector, but need binary serialisation formats like Avro/Thrift/Protobuf etc. Pull requests welcome.
+By default, only the value of a record is written out, encoded in UTF-8, and a newline (if not already present) is appended.
+
+Example connect-s3-sink.properties:
+
+```
+# If you specify a key converter, keys will also be written before each value.
+key.converter=com.spredfast.kafka.connect.s3.ToStringWithDelimiterConverter
+key.converter.encoding=UTF-16
+key.converter.delimiter=:
+
+# This is the default value converter and does not need to be specified, but can be configured.
+# value.converter=com.spredfast.kafka.connect.s3.ToStringWithDelimiterConverter
+value.converter.encoding=UTF-8 # default
+value.converter.delimiter=\n # newline is the default
+```
+
+The above config would write the key as UTF-16, followed by a `:`, then the value, UTF-8 encoded, followed by a newline.
+e.g., `key1:recorddata\n`
+
+### Binary Format
+
+If your records cannot be delimited, you can use the binary converters.
+
+The raw bytes of the key + value, each prefixed with 4 bytes to indicate the length will be written for each record.
+
+To get binary output, you'll need to configure your Connect cluster to use raw byte converters:
+
+connect-worker.properties:
+```
+key.converter=com.spredfast.kafka.connect.s3.ByteLengthEncodedConverter
+value.converter=com.spredfast.kafka.connect.s3.ByteLengthEncodedConverter
+```
+
+connect-s3-sink.properties:
+
+```
+# if you don't want keys, remove the key.converter line from the sink properties
+key.converter=com.spredfast.kafka.connect.s3.ByteLengthEncodedConverter
+value.converter=com.spredfast.kafka.connect.s3.ByteLengthEncodedConverter
+```
+
+Note that both files need the converters to be specified.
+
+See `BytesRecordReader` and `S3FilesReader` for reference implementations that reads the resulting binary files from S3.
+Both classes can be used to extract raw records from S3.
+
+
+#### Binary Output from a non-binary Cluster
+
+If you already have a Connect Cluster running with a different root converter,
+it is still possible (with some additional overhead) to use the S3 Sink in binary mode,
+and still be compatible with `BytesRecordReader` and `S3FilesReader`.
+
+To convert non-binary schema back to to bytes for S3 storage,
+configure the bytes converter(s) with a sub-converter to generate the raw bytes:
+
+connect-worker.properties:
+```
+key.converter=com.whatever.Converter
+value.converter=com.whatever.OtherConverter
+value.converter.config.value=something
+```
+
+connect-s3-sink.properties:
+
+```
+key.converter=com.spredfast.kafka.connect.s3.ByteLengthEncodedConverter
+key.converter.converter=key.converter=com.whatever.Converter
+
+value.converter=com.spredfast.kafka.connect.s3.ByteLengthEncodedConverter
+value.converter.converter=com.whatever.OtherConverter
+value.converter.converter.config.value=something
+```
+
+#### Custom Output Format
+
+It is possible to fully customize your output needs with custom key and value
+converters. Instead of `ByteLengthEncodedConverter` you may specify your own converter class
+and produce whatever byte output you desire.
+
+NOTE: `BytesRecordReader` and `S3FilesReader` will only work with records where the keys and values are
+preceded by a 4 byte, big endian value specifying the length of the key/value.
 
 ## Build and Run
 
-You should be able to build this with `mvn package`.
+You should be able to build this with `mvn package`. Once the jar is generated in target folder include it in  `CLASSPATH` (ex: for Mac users,export `CLASSPATH=.:$CLASSPATH:/fullpath/to/kafka-connect-s3-jar` )
+
+Run: `bin/connect-standalone.sh  example-connect-worker.properties example-connect-s3-sink.properties`(from the root directory of project, make sure you have kafka on the path, if not then give full path of kafka before `bin`)
+
 
 There is a script `local-run.sh` which you can inspect to see how to get it running. This script relies on having a local kafka instance setup as described in testing section below.
 
