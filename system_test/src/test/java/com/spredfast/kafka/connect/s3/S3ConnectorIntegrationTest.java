@@ -56,10 +56,18 @@ public class S3ConnectorIntegrationTest {
 
 	@AfterClass
 	public static void stopKafka() throws Exception {
-		connect.close();
-		kafka.close();
-		s3.close(dockerClient);
-		dockerClient.close();
+		tryClose(() -> connect.close());
+		tryClose(() -> kafka.close());
+		tryClose(() -> s3.close(dockerClient));
+		tryClose(() -> dockerClient.close());
+	}
+
+	private static void tryClose(AutoCloseable doClose) {
+		try {
+			doClose.close();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 	}
 
 	@Test
