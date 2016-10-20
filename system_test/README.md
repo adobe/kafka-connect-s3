@@ -1,5 +1,7 @@
 # System Test
 
+Note: These tests are deprecated and will be replaced with Java based integration tests that will run automatically with the build.
+
 ## Installing Dependencies
 
 These steps should be required just once.
