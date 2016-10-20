@@ -1,0 +1,13 @@
+machine:
+  services:
+    - docker
+
+dependencies:
+  pre:
+    - ./gradlew classes testClasses
+    - docker pull lphoward/fake-s3 # pre-cache for integration tests
+
+test:
+  post:
+    - mkdir -p $CIRCLE_TEST_REPORTS/junit/
+    - find . -type f -regex ".*/build/test-results/.*xml" -exec cp {} $CIRCLE_TEST_REPORTS/junit/ \;
