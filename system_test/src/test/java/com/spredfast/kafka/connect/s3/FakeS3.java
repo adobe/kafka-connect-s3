@@ -1,5 +1,7 @@
 package com.spredfast.kafka.connect.s3;
 
+import java.io.IOException;
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -41,8 +43,22 @@ public class FakeS3 {
 			.build()));
 	}
 
-	public void start(DockerClient dockerClient) throws DockerException, InterruptedException {
+	public void start(DockerClient dockerClient) throws DockerException, InterruptedException, IOException {
 		dockerClient.startContainer(container.id());
+		Thread thread = new Thread(() -> {
+			try {
+				dockerClient.attachContainer(container.id(),
+					DockerClient.AttachParameter.LOGS,
+					DockerClient.AttachParameter.STDOUT,
+					DockerClient.AttachParameter.STDERR,
+					DockerClient.AttachParameter.STREAM)
+					.attach(System.out, System.err);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		});
+		thread.setDaemon(true);
+		thread.start();
 	}
 
 	public void close(DockerClient dockerClient) throws DockerException, InterruptedException {

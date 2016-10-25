@@ -1,5 +1,6 @@
 package com.spredfast.kafka.connect.s3;
 
+import static java.util.stream.Collectors.toList;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -22,11 +23,11 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
+import java.util.stream.Stream;
 
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaAndValue;
-import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.storage.Converter;
 import org.junit.Test;
@@ -43,12 +44,10 @@ import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.spredfast.kafka.connect.s3.sink.BlockGZIPFileWriter;
-import com.spredfast.kafka.connect.s3.source.BytesRecordReader;
 import com.spredfast.kafka.connect.s3.source.S3FilesReader;
 import com.spredfast.kafka.connect.s3.source.S3Offset;
 import com.spredfast.kafka.connect.s3.source.S3Partition;
-
-import junit.framework.TestCase;
+import com.spredfast.kafka.connect.s3.source.S3SourceConfig;
 
 /**
  * Covers S3 and reading raw byte records. Closer to an integration test.
@@ -63,6 +62,21 @@ public class S3FilesReaderTest {
 		final AmazonS3 client = givenAMockS3Client(dir);
 
 		List<String> results = whenTheRecordsAreRead(client, true);
+
+		thenTheyAreFilteredAndInOrder(results);
+	}
+
+
+	@Test
+	public void testReadingBytesFromS3_multiPartition() throws IOException {
+		// scenario: multiple partition files at the end of a listing, page size >  # of files
+		// do we read all of them?
+		final Path dir = Files.createTempDirectory("s3FilesReaderTest");
+		givenASingleDayWithManyPartitions(dir);
+
+		final AmazonS3 client = givenAMockS3Client(dir);
+
+		List<String> results = whenTheRecordsAreRead(client, true, 10);
 
 		thenTheyAreFilteredAndInOrder(results);
 	}
@@ -113,27 +127,11 @@ public class S3FilesReaderTest {
 
 	S3FilesReader givenAReaderWithOffsets(AmazonS3 client, String marker, long nextOffset, final String partition) {
 		Map<S3Partition, S3Offset> offsets = new HashMap<>();
-		offsets.put(S3Partition.from("bucket", "prefix", Integer.valueOf(partition)),
-			S3Offset.from(marker, nextOffset));
-		return new S3FilesReader(
-			"bucket",
-			"prefix",
-			client,
-			1,
-			true,
-			null,
-			// only consume this partition
-			new S3FilesReader.PartitionFilter() {
-				@Override
-				public boolean matches(S3ObjectSummary object) {
-					Matcher matcher = BytesRecordReader.DEFAULT_PATTERN.matcher(object.getKey());
-					assertTrue(matcher.find());
-					return partition.equals(matcher.group("partition"));
-				}
-			},
-			null,
-			offsets
-		);
+		int partInt = Integer.valueOf(partition, 10);
+		offsets.put(S3Partition.from("bucket", "prefix", partInt),
+			S3Offset.from(marker, nextOffset - 1 /* an S3 offset is the last record processed, so go back 1 to consume next */));
+		return new S3FilesReader(new S3SourceConfig("bucket", "prefix", 1, null, S3FilesReader.DEFAULT_PATTERN, S3FilesReader.InputFilter.GUNZIP,
+			p -> partInt == p), client, offsets, () -> new BytesRecordReader(true));
 	}
 
 	public static class ReversedStringBytesConverter implements Converter {
@@ -160,30 +158,30 @@ public class S3FilesReaderTest {
 	}
 
 	@Test
-	public void testReadingBytesFromS3_withoutKeysAndACustomConverter() throws IOException {
+	public void testReadingBytesFromS3_withoutKeys() throws IOException {
 		final Path dir = Files.createTempDirectory("s3FilesReaderTest");
-		givenSomeData(dir, null, givenACustomConverter(), Schema.STRING_SCHEMA);
+		givenSomeData(dir, false);
 
 		final AmazonS3 client = givenAMockS3Client(dir);
 
 		List<String> results = whenTheRecordsAreRead(client, false);
 
-		theTheyAreReversedAndInOrder(results);
+		theTheyAreInOrder(results);
 	}
 
 	Converter givenACustomConverter() {
 		Map<String, Object> config = new HashMap<>();
-		config.put("converter", ByteLengthEncodedConverter.class.getName());
+		config.put("converter", AlreadyBytesConverter.class.getName());
 		config.put("converter.converter", ReversedStringBytesConverter.class.getName());
 		config.put("converter.converter.requiredProp", "isPresent");
-		return Converters.buildConverter(config, "converter", false, null);
+		return Configure.buildConverter(config, "converter", false, null);
 	}
 
-	void theTheyAreReversedAndInOrder(List<String> results) {
+	void theTheyAreInOrder(List<String> results) {
 		List<String> expected = Arrays.asList(
-			"0-0eulav",
-			"0-1eulav",
-			"1-1eulav"
+			"value0-0",
+			"value1-0",
+			"value1-1"
 		);
 		assertEquals(expected, results);
 	}
@@ -198,17 +196,11 @@ public class S3FilesReaderTest {
 	}
 
 	private List<String> whenTheRecordsAreRead(AmazonS3 client, boolean fileIncludesKeys) {
-		S3FilesReader reader = new S3FilesReader(
-			"bucket",
-			"prefix",
-			client,
-			1, // small to test pagination
-			fileIncludesKeys,
-			null,
-			null,
-			"prefix/2016-01-01",
-			null
-		);
+		return whenTheRecordsAreRead(client, fileIncludesKeys, 1);
+	}
+
+	private List<String> whenTheRecordsAreRead(AmazonS3 client, boolean fileIncludesKeys, int pageSize) {
+		S3FilesReader reader = new S3FilesReader(new S3SourceConfig("bucket", "prefix", pageSize, "prefix/2016-01-01", S3FilesReader.DEFAULT_PATTERN, S3FilesReader.InputFilter.GUNZIP, null), client, null,() -> new BytesRecordReader(fileIncludesKeys));
 		return whenTheRecordsAreRead(reader);
 	}
 
@@ -311,67 +303,51 @@ public class S3FilesReaderTest {
 		return obj;
 	}
 
-	private void givenSomeData(Path dir) throws IOException {
-		Converter valueConverter = Converters.buildConverter(new HashMap<String, Object>(), "missing", false, ByteLengthEncodedConverter.class);
-		givenSomeData(dir, valueConverter, valueConverter, Schema.BYTES_SCHEMA);
+	private void givenASingleDayWithManyPartitions(Path dir) throws IOException {
+		givenASingleDayWithManyPartitions(dir, true);
 	}
 
-	private void givenSomeData(Path dir, Converter keyConverter, Converter valueConverter, Schema valueSchema) throws IOException {
+	private void givenASingleDayWithManyPartitions(Path dir, boolean includeKeys) throws IOException {
+		new File(dir.toFile(), "prefix/2016-01-01").mkdirs();
+		try (BlockGZIPFileWriter p0 = new BlockGZIPFileWriter("topic-00000", dir.toString() + "/prefix/2016-01-01", 0, 512);
+			 BlockGZIPFileWriter p1 = new BlockGZIPFileWriter("topic-00001", dir.toString() + "/prefix/2016-01-01", 0, 512);
+		) {
+			write(p0, "key0-0".getBytes(), "value0-0".getBytes(), includeKeys);
+			write(p1, "key1-0".getBytes(), "value1-0".getBytes(), includeKeys);
+			write(p1, "key1-1".getBytes(), "value1-1".getBytes(), includeKeys);
+		}
+	}
+
+	private void givenSomeData(Path dir) throws IOException {
+		givenSomeData(dir, true);
+	}
+
+	private void givenSomeData(Path dir, boolean includeKeys) throws IOException {
 		new File(dir.toFile(), "prefix/2015-12-30").mkdirs();
 		new File(dir.toFile(), "prefix/2015-12-31").mkdirs();
 		new File(dir.toFile(), "prefix/2016-01-01").mkdirs();
 		new File(dir.toFile(), "prefix/2016-01-02").mkdirs();
-		try (BlockGZIPFileWriter writer0 = new BlockGZIPFileWriter("topic-00003", dir.toString() + "/prefix/2015-12-31", 1, 512, keyConverter, valueConverter);
-			 BlockGZIPFileWriter writer1 = new BlockGZIPFileWriter("topic-00000", dir.toString() + "/prefix/2016-01-01", 0, 512, keyConverter, valueConverter);
-			 BlockGZIPFileWriter writer2 = new BlockGZIPFileWriter("topic-00001", dir.toString() + "/prefix/2016-01-02", 0, 512, keyConverter, valueConverter);
-			 BlockGZIPFileWriter preWriter1 = new BlockGZIPFileWriter("topic-00003", dir.toString() + "/prefix/2015-12-30", 0, 512, keyConverter, valueConverter);
+		try (BlockGZIPFileWriter writer0 = new BlockGZIPFileWriter("topic-00003", dir.toString() + "/prefix/2015-12-31", 1, 512);
+			 BlockGZIPFileWriter writer1 = new BlockGZIPFileWriter("topic-00000", dir.toString() + "/prefix/2016-01-01", 0, 512);
+			 BlockGZIPFileWriter writer2 = new BlockGZIPFileWriter("topic-00001", dir.toString() + "/prefix/2016-01-02", 0, 512);
+			 BlockGZIPFileWriter preWriter1 = new BlockGZIPFileWriter("topic-00003", dir.toString() + "/prefix/2015-12-30", 0, 512);
 		) {
-			preWriter1.write(new SinkRecord(
-				"topic",
-				0,
-				Schema.BYTES_SCHEMA, "willbe".getBytes(),
-				valueSchema, ser("skipped0", valueSchema),
-				0
-			));
+			write(preWriter1, "willbe".getBytes(), "skipped0".getBytes(), includeKeys);
 
 			for (int i = 1; i < 10; i++) {
-				writer0.write(new SinkRecord(
-					"topic",
-					0,
-					Schema.BYTES_SCHEMA, "willbe".getBytes(),
-					valueSchema, ser("skipped" + i, valueSchema),
-					i
-				));
+				write(writer0, "willbe".getBytes(), ("skipped" + i).getBytes(), includeKeys);
 			}
 
-			writer1.write(new SinkRecord(
-				"topic",
-				0,
-				Schema.BYTES_SCHEMA, "key0-0".getBytes(),
-				valueSchema, ser("value0-0", valueSchema),
-				10
-			));
+			write(writer1, "key0-0".getBytes(), "value0-0".getBytes(), includeKeys);
 
-			writer2.write(new SinkRecord(
-				"topic",
-				1,
-				Schema.BYTES_SCHEMA, "key1-0".getBytes(),
-				valueSchema, ser("value1-0", valueSchema),
-				0
-			));
-			writer2.write(new SinkRecord(
-				"topic",
-				1,
-				Schema.BYTES_SCHEMA, "key1-1".getBytes(),
-				valueSchema, ser("value1-1", valueSchema),
-				1
-			));
+			write(writer2, "key1-0".getBytes(), "value1-0".getBytes(), includeKeys);
+			write(writer2, "key1-1".getBytes(), "value1-1".getBytes(), includeKeys);
 		}
 	}
 
-	private Object ser(String s, Schema valueSchema) {
-		return valueSchema == Schema.BYTES_SCHEMA ?
-			s.getBytes() : s;
+	private void write(BlockGZIPFileWriter writer, byte[] key, byte[] value, boolean includeKeys) throws IOException {
+		writer.write(new ByteLengthFormat(includeKeys).newWriter().writeBatch(Stream.of(new ProducerRecord<>("", key, value))).collect(toList()));
 	}
+
 
 }

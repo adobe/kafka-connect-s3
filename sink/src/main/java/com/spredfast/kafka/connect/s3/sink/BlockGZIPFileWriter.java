@@ -4,21 +4,15 @@ import static java.util.stream.Collectors.toList;
 
 import java.io.Closeable;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.FileWriter;
 import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.GZIPOutputStream;
 
-import org.apache.kafka.connect.sink.SinkRecord;
-import org.apache.kafka.connect.storage.Converter;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.spredfast.kafka.connect.s3.ToStringWithDelimiterConverter;
 import com.spredfast.kafka.connect.s3.json.ChunkDescriptor;
 import com.spredfast.kafka.connect.s3.json.ChunksIndex;
 
@@ -41,14 +35,11 @@ import com.spredfast.kafka.connect.s3.json.ChunksIndex;
  */
 public class BlockGZIPFileWriter implements Closeable {
 
-	private final Converter keyConverter; // nullable. key will be dropped
-	private final Converter valueConverter; // nullable? value will be dropped
-
 	private String filenameBase;
 	private String path;
 	private GZIPOutputStream gzipStream;
 	private CountingOutputStream fileStream;
-	private final ObjectMapper objectMapper = new ObjectMapper();;
+	private final ObjectMapper objectMapper = new ObjectMapper();
 
 	private class Chunk {
 		public long rawBytes = 0;
@@ -98,8 +89,6 @@ public class BlockGZIPFileWriter implements Closeable {
 		}
 	}
 
-	;
-
 	private ArrayList<Chunk> chunks;
 
 	// Default each chunk is 64MB of uncompressed data
@@ -110,32 +99,26 @@ public class BlockGZIPFileWriter implements Closeable {
 	// record offsets in the index to reflect the global offset rather than local
 	private long firstRecordOffset;
 
-	public BlockGZIPFileWriter(String filenameBase, String path) throws FileNotFoundException, IOException {
-		this(filenameBase, path, 0, 67108864, null, defaultConverter());
+	public BlockGZIPFileWriter(String filenameBase, String path) throws IOException {
+		this(filenameBase, path, 0, 67108864);
 	}
 
-	public BlockGZIPFileWriter(String filenameBase, String path, long firstRecordOffset) throws FileNotFoundException, IOException {
-		this(filenameBase, path, firstRecordOffset, 67108864, null, defaultConverter());
-	}
-
-	private static Converter defaultConverter() {
-		return new ToStringWithDelimiterConverter();
+	public BlockGZIPFileWriter(String filenameBase, String path, long firstRecordOffset) throws IOException {
+		this(filenameBase, path, firstRecordOffset, 67108864);
 	}
 
 	public BlockGZIPFileWriter(String filenameBase, String path, long firstRecordOffset, long chunkThreshold) throws IOException {
-		this(filenameBase, path, firstRecordOffset, chunkThreshold, null, defaultConverter());
+		this(filenameBase, path, firstRecordOffset, chunkThreshold, new byte[0]);
 	}
 
-	public BlockGZIPFileWriter(String filenameBase, String path, long firstRecordOffset, long chunkThreshold, Converter keyConverter, Converter valueConverter)
-		throws FileNotFoundException, IOException {
+	public BlockGZIPFileWriter(String filenameBase, String path, long firstRecordOffset, long chunkThreshold, byte[] header)
+		throws IOException {
 		this.filenameBase = filenameBase;
 		this.path = path;
 		this.firstRecordOffset = firstRecordOffset;
 		this.chunkThreshold = chunkThreshold;
-		this.keyConverter = keyConverter;
-		this.valueConverter = valueConverter;
 
-		chunks = new ArrayList<Chunk>();
+		chunks = new ArrayList<>();
 
 		// Initialize first chunk
 		Chunk ch = new Chunk();
@@ -155,18 +138,23 @@ public class BlockGZIPFileWriter implements Closeable {
 		// Open file for writing and setup
 		this.fileStream = new CountingOutputStream(fos);
 		initChunkWriter();
+		if (header.length > 0) {
+			// if there is a header, write it as its own gzip chunk
+			// so we know how many bytes to skip
+			gzipStream.write(header);
+			gzipStream.finish();
+			gzipStream = new GZIPOutputStream(fileStream);
+			// may have written header bytes
+			ch.byteOffset = fileStream.getNumBytesWritten();
+		}
 	}
 
-	private void initChunkWriter() throws IOException, UnsupportedEncodingException {
+	private void initChunkWriter() throws IOException {
 		gzipStream = new GZIPOutputStream(fileStream);
 	}
 
 	private Chunk currentChunk() {
 		return chunks.get(chunks.size() - 1);
-	}
-
-	public long getFirstRecordOffset() {
-		return firstRecordOffset;
 	}
 
 	public String getDataFileName() {
@@ -185,21 +173,9 @@ public class BlockGZIPFileWriter implements Closeable {
 		return String.format("%s/%s", path, this.getIndexFileName());
 	}
 
-	/**
-	 * Writes string to file, assuming this is a single record
-	 * <p>
-	 * If there is no newline at then end we will add one
-	 */
-	public void write(SinkRecord record) throws IOException {
-		Chunk ch = currentChunk();
 
-		List<byte[]> toWrite = new ArrayList<>(2);
-		if (keyConverter != null) {
-			toWrite.add(keyConverter.fromConnectData(record.topic(), record.keySchema(), record.key()));
-		}
-		if (valueConverter != null) {
-			toWrite.add(valueConverter.fromConnectData(record.topic(), record.valueSchema(), record.value()));
-		}
+	public void write(List<byte[]> toWrite) throws IOException {
+		Chunk ch = currentChunk();
 
 		int rawBytesToWrite = 0;
 		for (byte[] bytes : toWrite) {
@@ -233,6 +209,7 @@ public class BlockGZIPFileWriter implements Closeable {
 	private void deleteIfExists(String path) throws IOException {
 		File f = new File(path);
 		if (f.exists() && !f.isDirectory()) {
+			//noinspection ResultOfMethodCallIgnored
 			f.delete();
 		}
 	}
@@ -251,6 +228,7 @@ public class BlockGZIPFileWriter implements Closeable {
 	public void close() throws IOException {
 		// Flush last chunk, updating index
 		finishChunk();
+		gzipStream.close();
 		// Now close the writer (and the whole stream stack)
 		writeIndex();
 	}

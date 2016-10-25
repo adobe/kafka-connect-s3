@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 
@@ -62,7 +63,7 @@ public class S3WriterTest {
 	private BlockGZIPFileWriter createDummmyFiles(long offset, int numRecords) throws Exception {
 		BlockGZIPFileWriter writer = new BlockGZIPFileWriter("bar-00000", tmpDir, offset);
 		for (int i = 0; i < numRecords; i++) {
-			writer.write(BlockGZIPFileWriterTest.toRecord(String.format("Record %d", i)));
+			writer.write(Arrays.asList(String.format("Record %d", i).getBytes()));
 		}
 		writer.close();
 		return writer;

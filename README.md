@@ -125,16 +125,16 @@ To get binary output, you'll need to configure your Connect cluster to use raw b
 
 connect-worker.properties:
 ```
-key.converter=com.spredfast.kafka.connect.s3.ByteLengthEncodedConverter
-value.converter=com.spredfast.kafka.connect.s3.ByteLengthEncodedConverter
+key.converter=com.spredfast.kafka.connect.s3.AlreadyBytesConverter
+value.converter=com.spredfast.kafka.connect.s3.AlreadyBytesConverter
 ```
 
 connect-s3-sink.properties:
 
 ```
 # if you don't want keys, remove the key.converter line from the sink properties
-key.converter=com.spredfast.kafka.connect.s3.ByteLengthEncodedConverter
-value.converter=com.spredfast.kafka.connect.s3.ByteLengthEncodedConverter
+key.converter=com.spredfast.kafka.connect.s3.AlreadyBytesConverter
+value.converter=com.spredfast.kafka.connect.s3.AlreadyBytesConverter
 ```
 
 Note that both files need the converters to be specified.
@@ -162,10 +162,10 @@ value.converter.config.value=something
 connect-s3-sink.properties:
 
 ```
-key.converter=com.spredfast.kafka.connect.s3.ByteLengthEncodedConverter
+key.converter=com.spredfast.kafka.connect.s3.AlreadyBytesConverter
 key.converter.converter=key.converter=com.whatever.Converter
 
-value.converter=com.spredfast.kafka.connect.s3.ByteLengthEncodedConverter
+value.converter=com.spredfast.kafka.connect.s3.AlreadyBytesConverter
 value.converter.converter=com.whatever.OtherConverter
 value.converter.converter.config.value=something
 ```

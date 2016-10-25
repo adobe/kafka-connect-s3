@@ -90,8 +90,8 @@ public class KafkaIntegrationTests {
 		WorkerConfig config = new StandaloneConfig(ImmutableMap.<String, String>builder()
 			.put("bootstrap.servers", "localhost:" + kafkaPort)
 			// perform no conversion
-			.put("key.converter", "com.spredfast.kafka.connect.s3.ByteLengthEncodedConverter")
-			.put("value.converter", "com.spredfast.kafka.connect.s3.ByteLengthEncodedConverter")
+			.put("key.converter", "com.spredfast.kafka.connect.s3.AlreadyBytesConverter")
+			.put("value.converter", "com.spredfast.kafka.connect.s3.AlreadyBytesConverter")
 			.put("internal.key.converter", "org.apache.kafka.connect.json.JsonConverter")
 			.put("internal.value.converter", "org.apache.kafka.connect.json.JsonConverter")
 			.put("internal.key.converter.schemas.enable", "true")

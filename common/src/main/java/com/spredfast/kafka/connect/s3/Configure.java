@@ -2,11 +2,15 @@ package com.spredfast.kafka.connect.s3;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import org.apache.kafka.common.Configurable;
+import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.storage.Converter;
 
-public abstract class Converters {
+public abstract class Configure {
+
+	private static final Class<? extends S3RecordFormat> DEFAULT_FORMAT = TrailingDelimiterFormat.class;
 
 	/**
 	 * Create and configure a new Converter instance.
@@ -40,19 +44,46 @@ public abstract class Converters {
 			}
 
 			// grab any properties intended for the converter
-			Map<String, Object> subKeys = new LinkedHashMap<>();
-			String prefix = classNameProp + ".";
-			for (String p : props.keySet()) {
-				if (p.startsWith(prefix)) {
-					subKeys.put(p.substring(prefix.length()), props.get(p));
-				}
-			}
+			Map<String, Object> subKeys = subKeys(classNameProp, props);
 
 			converter.configure(subKeys, isKey);
 
 			return converter;
 		} catch (Exception e) {
-			throw new IllegalArgumentException("Could not create S3 converter for props " + classNameProp + " isKey=" + isKey);
+			throw new IllegalArgumentException("Could not create S3 converter for props " + classNameProp + " isKey=" + isKey, e);
 		}
 	}
+
+	public static Map<String, Object> subKeys(String classNamePro, Map<String, ?> props) {
+		Map<String, Object> subKeys = new LinkedHashMap<>();
+		String prefix = classNamePro + ".";
+		for (String p : props.keySet()) {
+			if (p.startsWith(prefix)) {
+				subKeys.put(p.substring(prefix.length()), props.get(p));
+			}
+		}
+		return subKeys;
+	}
+
+	public static S3RecordFormat createFormat(Map<String, String> props) {
+		try {
+			S3RecordFormat recordFormat = (S3RecordFormat) Optional.ofNullable(props.get("format")).map(Object::toString)
+				.map(className -> {
+					try {
+						return Class.forName(className);
+					} catch (ClassNotFoundException e) {
+						throw new IllegalArgumentException(e);
+					}
+				})
+				.orElseGet(() -> (Class) DEFAULT_FORMAT)
+				.newInstance();
+			if (recordFormat instanceof Configurable) {
+				((Configurable) recordFormat).configure(subKeys("format", props));
+			}
+			return recordFormat;
+		} catch (Exception e) {
+			throw new ConnectException("Failed to create format: " + props.get("format"), e);
+		}
+	}
+
 }

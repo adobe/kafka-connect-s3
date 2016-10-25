@@ -1,7 +1,5 @@
 description = ""
 
 dependencies {
-	compile project(':api')
     compile group: 'org.apache.kafka', name: 'connect-api', version: '0.10.0.1'
-    compile group: 'com.amazonaws', name: 'aws-java-sdk-s3', version: '1.10.37'
 }

@@ -11,10 +11,10 @@ import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.InputStreamReader;
 import java.io.RandomAccessFile;
+import java.util.Arrays;
+import java.util.List;
 import java.util.zip.GZIPInputStream;
 
-import org.apache.kafka.connect.data.Schema;
-import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.Before;
 import org.junit.Test;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -74,16 +74,12 @@ public class BlockGZIPFileWriterTest {
 			totalUncompressedBytes += line.length() + 1;
 			// Expect to read without newlines...
 			expectedLines[i] = line;
-			// But add newlines to half the input to verify writer adds them only if needed
-			if (i % 2 == 0) {
-				line += "\n";
-			}
 			w.write(toRecord(line));
 		}
 
-		assertEquals(totalUncompressedBytes, w.getTotalUncompressedSize());
 		assertEquals(50, w.getNumRecords());
 		assertTrue("Should be at least 10 chunks in output file", w.getNumChunks() >= 10);
+		assertEquals(totalUncompressedBytes, w.getTotalUncompressedSize());
 
 		w.close();
 
@@ -91,16 +87,8 @@ public class BlockGZIPFileWriterTest {
 		verifyIndexFile(w, 987654321, expectedLines);
 	}
 
-	static SinkRecord toRecord(String line) {
-		return new SinkRecord(
-			"topicIgnored",
-			0,
-			null,
-			null,
-			Schema.STRING_SCHEMA,
-			line,
-			123 // not important
-		);
+	static List<byte[]> toRecord(String line) {
+		return Arrays.asList((line + '\n').getBytes());
 	}
 
 	private void verifyOutputIsSaneGZIPFile(String filename, String[] expectedRecords) throws Exception {
