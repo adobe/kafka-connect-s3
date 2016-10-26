@@ -1,5 +1,7 @@
 package com.spredfast.kafka.connect.s3;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -11,6 +13,12 @@ import org.apache.kafka.connect.storage.Converter;
 public abstract class Configure {
 
 	private static final Class<? extends S3RecordFormat> DEFAULT_FORMAT = TrailingDelimiterFormat.class;
+
+	private static final Map<?, String> FORMAT_ALIAS = Collections.unmodifiableMap(new HashMap<String, String>() {{
+		put("binary", ByteLengthFormat.class.getName());
+		put("text", TrailingDelimiterFormat.class.getName());
+	}});
+
 
 	/**
 	 * Create and configure a new Converter instance.
@@ -68,6 +76,7 @@ public abstract class Configure {
 	public static S3RecordFormat createFormat(Map<String, String> props) {
 		try {
 			S3RecordFormat recordFormat = (S3RecordFormat) Optional.ofNullable(props.get("format")).map(Object::toString)
+				.map(name -> FORMAT_ALIAS.getOrDefault(name, name))
 				.map(className -> {
 					try {
 						return Class.forName(className);

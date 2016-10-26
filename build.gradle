@@ -5,18 +5,51 @@ version = '0.2.0'
 
 description = "kafka-connect-s3"
 
+buildscript {
+	repositories {
+		jcenter()
+	}
+	dependencies {
+		classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.3'
+	}
+}
+
 allprojects  {
     apply plugin: 'maven'
     apply plugin: 'idea'
 
     group = 'com.spredfast.kafka.connect.s3'
+
+	apply plugin: 'java'
+	sourceCompatibility = 1.8
+	targetCompatibility = 1.8
+
+	repositories {
+		maven { url "http://repo.maven.apache.org/maven2" }
+	}
 }
 
-subprojects {
-    apply plugin: 'java'
-    sourceCompatibility = 1.8
-    targetCompatibility = 1.8
-    repositories {
-        maven { url "http://repo.maven.apache.org/maven2" }
-    }
+apply plugin: "com.github.johnrengelman.shadow"
+
+// our docker image is 0.9.x... These tests are deprecated.
+shadowJar {
+	dependencies {
+		// provided in the connect classpath
+		exclude(dependency('org.apache.kafka:connect-api:0.10.0.1'))
+		exclude(dependency('org.apache.kafka:kafka-clients:0.10.0.1'))
+		exclude(dependency('net.jpountz.lz4:.*:.*'))
+		exclude(dependency('org.xerial.snappy:.*:.*'))
+		exclude(dependency('org.slf4j:.*:.*'))
+	}
+
+	// for things we directly depend on, repackage so we don't conflict with other connectors
+	relocate 'com.amazonaws', 'com.spredfast.shade.amazonaws'
+	relocate 'com.fasterxml', 'com.spredfast.shade.fasterxml'
+	relocate 'org.apache', 'com.spredfast.shade.apache'
+	relocate 'org.joda', 'com.spredfast.shade.joda'
+}
+
+dependencies {
+	compile project(':sink')
+	compile project(':source')
 }
