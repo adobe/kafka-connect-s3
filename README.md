@@ -73,12 +73,12 @@ The default format is text, with UTF-8 newlines between records. Keys are droppe
 # this line may be omitted
 format=text
 # default delimiter is a newline
-value.delimiter=\n
+format.value.delimiter=\n
 # UTF-8 is the default encoding
-value.encoding=UTF-16
+format.value.encoding=UTF-16
 # keys will only be written if a delimiter is specified
-key.delimiter=\t
-key.encoding=UTF-16
+format.key.delimiter=\t
+format.key.encoding=UTF-16
 ```
 
 NOTE: Only the delimiter you specify is encoded. The bytes of the records will be written unchanged.
@@ -98,7 +98,9 @@ Refer to the [S3 Formats wiki](https://github.com/spredfast/kafka-connect-s3/wik
 
 ## Configuration
 
-In addition to the [standard kafka-connect config options](http://kafka.apache.org/documentation.html#connectconfigs) we support/require the following, in the task properties file or REST config:
+In addition to the [standard kafka-connect config options](http://kafka.apache.org/documentation.html#connectconfigs)
+and [format settings](https://github.com/spredfast/kafka-connect-s3/wiki/Sink-Configurations)
+ we support/require the following, in the task properties file or REST config:
 
 | Config Key | Default | Notes |
 | ---------- | ------- | ----- |
@@ -116,7 +118,9 @@ These additional configs apply to the Source connector:
 | ---------- | ------- | ----- |
 | max.poll.records | 1000 | The number of records to return in a single poll of S3 |
 | s3.page.size | 100 | The number of objects we list from S3 in one request |
+| max.partition.count | 200 | The maximum number of partitions a topic can have. Partitions over this number will not be processed. |
 | targetTopic.${original} | none | If you want the source to send records to an different topic than the original. e.g., targetTopic.foo=bar would send messages originally in topic foo to topic bar. |
+| s3.start.marker | `null` | [List-Object Marker](http://docs.aws.amazon.com/cli/latest/reference/s3api/list-objects.html#output). S3 object key or key prefix to start reading from. |
 
 ## Contributing
 

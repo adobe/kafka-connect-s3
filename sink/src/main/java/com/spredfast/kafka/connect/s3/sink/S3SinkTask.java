@@ -31,7 +31,7 @@ import com.spredfast.kafka.connect.s3.S3RecordFormat;
 import com.spredfast.kafka.connect.s3.S3RecordsWriter;
 
 
-public class S3SinkTask extends SinkTask implements Configurable {
+public class S3SinkTask extends SinkTask {
 
 	private static final Logger log = LoggerFactory.getLogger(S3SinkTask.class);
 
@@ -86,12 +86,6 @@ public class S3SinkTask extends SinkTask implements Configurable {
 
 		// Recover initial assignments
 		open(context.assignment());
-	}
-
-	// this lets us receive the global worker config
-	@Override
-	public void configure(Map<String, ?> configs) {
-
 	}
 
 	@Override

@@ -12,7 +12,11 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -28,6 +32,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.Files;
@@ -79,7 +84,7 @@ public class S3ConnectorIntegrationTest {
 	}
 
 	@Test
-	public void binarySinkAndSource() throws Exception {
+	public void binaryWithKeys() throws Exception {
 		String sinkTopic = kafka.createUniqueTopic("sink-source-", 2);
 
 		Producer<String, String> producer = givenKafkaProducer();
@@ -100,14 +105,27 @@ public class S3ConnectorIntegrationTest {
 
 		thenMessagesAreRestored(sourceTopic);
 
-		// TODO
-		// stop connectors
-		// write more data
+		whenConnectIsStopped();
+		givenMoreData(sinkTopic, producer);
 
-		// start connectors
+		whenConnectIsRestarted();
+		whenTheConnectorIsStarted(config);
+		whenTheConnectorIsStarted(sourceConfig);
 
-		// verify again
 
+		thenMoreMessagesAreRestored(sourceTopic);
+	}
+
+	private void whenConnectIsRestarted() throws IOException {
+		connect = givenKafkaConnect(kafka.localPort());
+	}
+
+	public void givenMoreData(String sinkTopic, Producer<String, String> producer) throws InterruptedException, ExecutionException, TimeoutException {
+		givenRecords(sinkTopic, producer, 5);
+	}
+
+	private void whenConnectIsStopped() throws Exception {
+		connect.close();
 	}
 
 
@@ -176,21 +194,33 @@ public class S3ConnectorIntegrationTest {
 	}
 
 	private void givenRecords(String originalTopic, Producer<String, String> producer) throws InterruptedException, java.util.concurrent.ExecutionException, java.util.concurrent.TimeoutException {
+		givenRecords(originalTopic, producer, 0);
+	}
+
+	private void givenRecords(String originalTopic, Producer<String, String> producer, int start) throws InterruptedException, java.util.concurrent.ExecutionException, java.util.concurrent.TimeoutException {
 		// send odds to partition 1, and evens to 0
-		producer.send(new ProducerRecord<>(originalTopic, 0, "key:0", "value:0")).get(5, TimeUnit.SECONDS);
-		producer.send(new ProducerRecord<>(originalTopic, 1, "key:1", "value:1")).get(5, TimeUnit.SECONDS);
-		producer.send(new ProducerRecord<>(originalTopic, 0, "key:2", "value:2")).get(5, TimeUnit.SECONDS);
-		producer.send(new ProducerRecord<>(originalTopic, 1, "key:3", "value:3")).get(5, TimeUnit.SECONDS);
+		IntStream.range(start, start + 4).forEach(i -> {
+			try {
+				producer.send(new ProducerRecord<>(originalTopic, i % 2, "key:" + i, "value:" + i)).get(5, TimeUnit.SECONDS);
+			} catch (Exception e) {
+				throw Throwables.propagate(e);
+			}
+		});
 	}
 
 	private void thenMessagesAreRestored(String sourceTopic) {
+		thenMessagesAreRestored(sourceTopic, 0);
+	}
+
+	private void thenMessagesAreRestored(String sourceTopic, int start) {
 		Consumer<String, String> consumer = givenAConsumer();
 		ImmutableList<TopicPartition> partitions = ImmutableList.of(
 			new TopicPartition(sourceTopic, 0),
 			new TopicPartition(sourceTopic, 1)
 		);
 		consumer.assign(partitions);
-		consumer.seekToBeginning(partitions);
+		consumer.seek(partitions.get(0), 0);
+		consumer.seek(partitions.get(1), 0);
 
 		// HACK - add to this list and then assert we are done. will retry until done.
 		List<List<String>> results = ImmutableList.of(
@@ -200,14 +230,33 @@ public class S3ConnectorIntegrationTest {
 		waitForPassing(Duration.ofSeconds(10), () -> {
 			ConsumerRecords<String, String> records = consumer.poll(500L);
 			records.forEach(r -> results.get(r.partition()).add(r.value()));
-			assertEquals("got all the records for 0", 2, results.get(0).size());
-			assertEquals("got all the records for 1", 2, results.get(1).size());
+
+			assertEquals("got all the records for 0 " + results, 2, distinctAfter(start, results.get(0)).count());
+			assertEquals("got all the records for 1 " + results, 2, distinctAfter(start, results.get(1)).count());
 		});
+
+		boolean startOdd = (start % 2 == 1);
+		List<String> evens = distinctAfter(start, results.get(0)).collect(toList());
+		List<String> odds = distinctAfter(start, results.get(1)).collect(toList());
 		assertEquals("records restored to same partitions, in-order", ImmutableList.of(
-			ImmutableList.of("value:0", "value:2"),
-			ImmutableList.of("value:1", "value:3")
-		), results);
+			ImmutableList.of("value:" + (0 + start), "value:" + (2 + start)),
+			ImmutableList.of("value:" + (1 + start), "value:" + (3 + start))
+		), ImmutableList.of(
+			startOdd ? odds : evens,
+			startOdd ? evens : odds
+		));
+
+		consumer.close();
 	}
+
+	private Stream<String> distinctAfter(int start, List<String> list) {
+		return list.stream().distinct().skip(start / 2);
+	}
+
+	private void thenMoreMessagesAreRestored(String sourceTopic) {
+		thenMessagesAreRestored(sourceTopic, 5);
+	}
+
 
 	private Producer<String, String> givenKafkaProducer() {
 		return new KafkaProducer<>(ImmutableMap.<String, Object>builder()
