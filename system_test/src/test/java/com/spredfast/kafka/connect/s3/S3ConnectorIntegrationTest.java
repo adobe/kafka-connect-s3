@@ -85,6 +85,15 @@ public class S3ConnectorIntegrationTest {
 
 	@Test
 	public void binaryWithKeys() throws Exception {
+		// this test can be flakey because we can't control how fast connect writes...
+		// it's still cheaper to retry it for 3 minutes than to manually rerun builds
+		waitForPassing(Duration.ofMinutes(3), () -> {
+			_binaryWithKeys();
+			return null;
+		});
+	}
+
+	public void _binaryWithKeys() throws Exception {
 		String sinkTopic = kafka.createUniqueTopic("sink-source-", 2);
 
 		Producer<String, String> producer = givenKafkaProducer();
