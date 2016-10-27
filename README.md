@@ -116,7 +116,7 @@ These additional configs apply to the Source connector:
 | ---------- | ------- | ----- |
 | max.poll.records | 1000 | The number of records to return in a single poll of S3 |
 | s3.page.size | 100 | The number of objects we list from S3 in one request |
-| targetTopic.${original} | none | If you want the source to send records to an different topic than the original. |
+| targetTopic.${original} | none | If you want the source to send records to an different topic than the original. e.g., targetTopic.foo=bar would send messages originally in topic foo to topic bar. |
 
 ## Contributing
 
