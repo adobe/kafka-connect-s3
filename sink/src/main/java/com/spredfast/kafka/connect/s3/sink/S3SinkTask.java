@@ -13,7 +13,6 @@ import java.util.Optional;
 
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.Configurable;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.RetriableException;
@@ -24,8 +23,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.amazonaws.services.s3.AmazonS3;
 import com.spredfast.kafka.connect.s3.AlreadyBytesConverter;
-import com.spredfast.kafka.connect.s3.Constants;
 import com.spredfast.kafka.connect.s3.Configure;
+import com.spredfast.kafka.connect.s3.Constants;
 import com.spredfast.kafka.connect.s3.S3;
 import com.spredfast.kafka.connect.s3.S3RecordFormat;
 import com.spredfast.kafka.connect.s3.S3RecordsWriter;
@@ -116,6 +115,8 @@ public class S3SinkTask extends SinkTask {
 				log.error("Trying to put {} records to partition {} which doesn't exist yet", records.size(), tp);
 				throw new ConnectException("Trying to put records for a topic partition that has not be assigned");
 			}
+			log.debug("{} received {} records for {} to archive. Last offset {}", name(), rs.size(), tp,
+				rs.get(rs.size() - 1).kafkaOffset());
 			writeAll(rs, buffer, writers.get(tp));
 		});
 	}
@@ -125,14 +126,13 @@ public class S3SinkTask extends SinkTask {
 		// Don't rely on offsets passed. They have some quirks like including topic partitions that just
 		// got revoked (i.e. we have deleted the writer already). Not sure if this is intended...
 		// https://twitter.com/mr_paul_banks/status/702493772983177218
+		log.debug("{} flushing offsets", name());
 
 		// Instead iterate over the writers we do have and get the offsets directly from them.
 		for (Map.Entry<TopicPartition, BlockGZIPFileWriter> entry : tmpFiles.entrySet()) {
 			TopicPartition tp = entry.getKey();
 			BlockGZIPFileWriter writer = entry.getValue();
 			if (writer.getNumRecords() == 0) {
-				// Not done anything yet
-				log.info("No new records for partition {}", tp);
 				continue;
 			}
 			try {
@@ -143,13 +143,18 @@ public class S3SinkTask extends SinkTask {
 				// Now reset writer to a new one
 				initWriter(tp, nextOffset);
 
-				log.info("Successfully uploaded chunk for {} now at offset {}", tp, nextOffset);
+				log.debug("{} successfully uploaded {} records for {} as {} now at offset {}", name(), writer.getNumRecords(), tp,
+					writer.getDataFileName(), nextOffset);
 			} catch (FileNotFoundException fnf) {
 				throw new ConnectException("Failed to find local dir for temp files", fnf);
 			} catch (IOException e) {
 				throw new RetriableException("Failed S3 upload", e);
 			}
 		}
+	}
+
+	private String name() {
+		return config.get("name");
 	}
 
 	public void finishWriter(BlockGZIPFileWriter writer, TopicPartition tp) throws IOException {

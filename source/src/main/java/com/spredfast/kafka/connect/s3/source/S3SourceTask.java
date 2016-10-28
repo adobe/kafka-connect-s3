@@ -20,6 +20,8 @@ import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.source.SourceTask;
 import org.apache.kafka.connect.storage.Converter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.amazonaws.services.s3.AmazonS3;
 import com.spredfast.kafka.connect.s3.AlreadyBytesConverter;
 import com.spredfast.kafka.connect.s3.Constants;
@@ -28,6 +30,7 @@ import com.spredfast.kafka.connect.s3.S3;
 import com.spredfast.kafka.connect.s3.S3RecordFormat;
 
 public class S3SourceTask extends SourceTask {
+	private static final Logger log = LoggerFactory.getLogger(S3SourceTask.class);
 
 	/**
 	 * @see #remapTopic(String)
@@ -85,8 +88,6 @@ public class S3SourceTask extends SourceTask {
 				entry -> S3Partition.from(entry.getKey()),
 				entry -> S3Offset.from(entry.getValue())));
 
-		stopped.set(false);
-
 		maxPoll = Optional.ofNullable(taskConfig.get("max.poll.records"))
 			.map(Integer::parseInt)
 			.orElse(1000);
@@ -101,6 +102,8 @@ public class S3SourceTask extends SourceTask {
 			S3FilesReader.InputFilter.GUNZIP,
 			partitionNumbers::contains
 		);
+
+		log.debug("{} reading from S3 with offsets {}", taskConfig.get("name"), offsets);
 
 		reader = new S3FilesReader(config, client, offsets, format::newReader).readAll();
 	}
@@ -117,6 +120,7 @@ public class S3SourceTask extends SourceTask {
 		// TODO catch AWS exceptions, sleep and retry
 
 		while (!reader.hasNext()) {
+			log.debug("Blocking until new S3 files are available.");
 			// sleep and block here until new files are available
 			Thread.sleep(1000L); // TODO config
 			readFromStoredOffsets();
@@ -135,6 +139,7 @@ public class S3SourceTask extends SourceTask {
 				value.schema(), value.value()));
 		}
 
+		log.debug("{} returning {} records.", taskConfig.get("name"), results.size());
 		return results;
 	}
 

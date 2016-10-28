@@ -99,6 +99,7 @@ public class KafkaIntegrationTests {
 			.put("offset.storage.file.filename", tempFile.getCanonicalPath())
 			.put("offset.flush.interval.ms", "1000")
 			.put("consumer.metadata.max.age.ms", "1000")
+			.put("rest.port", "" + InstanceSpec.getRandomPort())
 			.build()
 		);
 

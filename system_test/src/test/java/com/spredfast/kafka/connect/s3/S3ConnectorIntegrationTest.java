@@ -1,17 +1,22 @@
 package com.spredfast.kafka.connect.s3;
 
+import static com.google.common.collect.Maps.immutableEntry;
 import static com.spredfast.kafka.test.KafkaIntegrationTests.givenKafkaConnect;
 import static com.spredfast.kafka.test.KafkaIntegrationTests.givenLocalKafka;
 import static com.spredfast.kafka.test.KafkaIntegrationTests.waitForPassing;
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
 import static org.junit.Assert.assertEquals;
 
 import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -27,6 +32,11 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.apache.log4j.ConsoleAppender;
+import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
+import org.apache.log4j.PatternLayout;
+import org.apache.log4j.SimpleLayout;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -35,13 +45,18 @@ import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Files;
 import com.spotify.docker.client.DefaultDockerClient;
 import com.spotify.docker.client.exceptions.DockerCertificateException;
 import com.spredfast.kafka.connect.s3.sink.S3SinkConnector;
+import com.spredfast.kafka.connect.s3.sink.S3SinkTask;
+import com.spredfast.kafka.connect.s3.source.S3FilesReader;
 import com.spredfast.kafka.connect.s3.source.S3SourceConnector;
 import com.spredfast.kafka.connect.s3.source.S3SourceTask;
 import com.spredfast.kafka.test.KafkaIntegrationTests;
+
+import jnr.ffi.annotations.In;
 
 public class S3ConnectorIntegrationTest {
 
@@ -61,14 +76,23 @@ public class S3ConnectorIntegrationTest {
 		s3 = FakeS3.create(dockerClient);
 
 		s3.start(dockerClient);
+
+		ConsoleAppender consoleAppender = new ConsoleAppender(new PatternLayout(PatternLayout.TTCC_CONVERSION_PATTERN));
+		Logger.getRootLogger().addAppender(consoleAppender);
+		Logger.getRootLogger().setLevel(Level.ERROR);
+		Logger.getLogger(S3SinkTask.class).setLevel(Level.DEBUG);
+		Logger.getLogger(S3SourceTask.class).setLevel(Level.DEBUG);
+		Logger.getLogger(S3FilesReader.class).setLevel(Level.DEBUG);
 	}
 
 	private static DefaultDockerClient givenDockerClient() throws DockerCertificateException {
 		return DefaultDockerClient.fromEnv().build();
 	}
 
+
 	@AfterClass
 	public static void stopKafka() throws Exception {
+		System.err.println("NOTE: Can probably ignore all the 'ERROR - CRITICAL:' output. It's expected when bootstrapping a Source.");
 		tryClose(() -> connect.close());
 		tryClose(() -> kafka.close());
 		tryClose(() -> s3.close(dockerClient));
@@ -91,12 +115,12 @@ public class S3ConnectorIntegrationTest {
 
 		givenRecords(sinkTopic, producer);
 
-		Map<String, String> config = givenSinkConfig(sinkTopic);
-		AmazonS3 s31 = givenS3Client(config);
+		Map<String, String> sinkConfig = givenSinkConfig(sinkTopic);
+		AmazonS3 s3 = givenS3Client(sinkConfig);
 
-		whenTheConnectorIsStarted(config);
+		whenTheConnectorIsStarted(sinkConfig);
 
-		thenFilesAreWrittenToS3(s31);
+		thenFilesAreWrittenToS3(s3);
 
 		String sourceTopic = kafka.createUniqueTopic("source-replay-", 2);
 
@@ -109,12 +133,13 @@ public class S3ConnectorIntegrationTest {
 		givenMoreData(sinkTopic, producer);
 
 		whenConnectIsRestarted();
-		whenTheConnectorIsStarted(config);
+		whenTheConnectorIsStarted(sinkConfig);
 		whenTheConnectorIsStarted(sourceConfig);
 
-
 		thenMoreMessagesAreRestored(sourceTopic);
+
 	}
+
 
 	private void whenConnectIsRestarted() throws IOException {
 		connect = givenKafkaConnect(kafka.localPort());
@@ -150,13 +175,25 @@ public class S3ConnectorIntegrationTest {
 		waitForPassing(Duration.ofSeconds(10), () -> {
 			List<String> keys = s3.listObjects(S3_BUCKET, S3_PREFIX).getObjectSummaries().stream()
 				.map(S3ObjectSummary::getKey).collect(toList());
-			List<Integer> obs = keys.stream()
+			Set<Map.Entry<Integer, Long>> partAndOffset = keys.stream()
 				.filter(key -> key.endsWith(".gz"))
-				.map(key -> key.replaceAll(".*?-(\\d{5})-\\d{12}\\.gz", "$1"))
-				.map(Integer::parseInt)
-				.collect(toList());
-			assertEquals("should be a file for each partition " + keys, ImmutableList.of(0, 1), obs);
+				.map(key -> immutableEntry(Integer.parseInt(key.replaceAll(".*?-(\\d{5})-\\d{12}\\.gz", "$1")),
+						Long.parseLong(key.replaceAll(".*?-\\d{5}-(\\d{12})\\.gz", "$1"))))
+				.collect(toSet());
+			assertEqualsOneOf("should be a file for each partition " + keys, partAndOffset, ImmutableSet.of(
+				immutableEntry(0, 0L), immutableEntry(1, 0L)
+			), ImmutableSet.of(
+				immutableEntry(0, 0L), immutableEntry(1, 0L),
+				immutableEntry(0, 1L), immutableEntry(1, 1L)
+			));
 		});
+	}
+
+	@SafeVarargs
+	private final <T> void assertEqualsOneOf(String message, T actual, T... expected) {
+		if (!Arrays.stream(expected).anyMatch(e -> e.equals(message))) {
+			assertEquals(message, expected[0], actual);
+		}
 	}
 
 
@@ -165,6 +202,7 @@ public class S3ConnectorIntegrationTest {
 			.put("name", sourceTopic + "-s3-source")
 			.put("connector.class", S3SourceConnector.class.getName())
 			.put("tasks.max", "1")
+			.put("max.partition.count", "2")
 			.put(S3SourceTask.CONFIG_TARGET_TOPIC + "." + sinkTopic, sourceTopic))
 			.build();
 	}
@@ -219,15 +257,14 @@ public class S3ConnectorIntegrationTest {
 			new TopicPartition(sourceTopic, 1)
 		);
 		consumer.assign(partitions);
-		consumer.seek(partitions.get(0), 0);
-		consumer.seek(partitions.get(1), 0);
+		consumer.seekToBeginning(partitions);
 
 		// HACK - add to this list and then assert we are done. will retry until done.
 		List<List<String>> results = ImmutableList.of(
 			new ArrayList<>(),
 			new ArrayList<>()
 		);
-		waitForPassing(Duration.ofSeconds(10), () -> {
+		waitForPassing(Duration.ofSeconds(30), () -> {
 			ConsumerRecords<String, String> records = consumer.poll(500L);
 			records.forEach(r -> results.get(r.partition()).add(r.value()));
 

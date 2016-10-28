@@ -15,11 +15,15 @@ public class ChunksIndex {
 	 * @return the size of the file (compressed) in bytes.
 	 */
 	public long totalSize() {
-		if (chunks.isEmpty()) {
-			return 0;
-		}
-		ChunkDescriptor last = chunks.get(chunks.size() - 1);
-		return last.byte_offset + last.byte_length;
+		return last().map(last -> last.byte_offset + last.byte_length).orElse(0L);
+	}
+
+	public long lastOffset() {
+		return last().map(last -> last.first_record_offset + last.num_records - 1).orElse(-1L);
+	}
+
+	private Optional<ChunkDescriptor> last() {
+		return chunks.isEmpty() ? Optional.empty() : Optional.of(chunks.get(chunks.size() - 1));
 	}
 
 	public static ChunksIndex of(List<ChunkDescriptor> chunks) {

@@ -198,7 +198,7 @@ public class BlockGZIPFileWriter implements Closeable {
 		}
 
 		ch.rawBytes += rawBytesToWrite;
-		ch.numRecords++;
+		ch.numRecords += toWrite.size();
 	}
 
 	public void delete() throws IOException {
