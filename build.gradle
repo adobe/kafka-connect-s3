@@ -44,8 +44,7 @@ allprojects  {
 		maven { url "http://repo.maven.apache.org/maven2" }
 	}
 
-
-	ext."signing.keyId" = 'F3798F48'
+	ext."signing.keyId" = '3D5954DE'
 	ext."signing.password" = System.env.KEY_PASS
 	ext."signing.secretKeyRingFile" = "${rootDir}/secring"
 
