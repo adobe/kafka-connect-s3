@@ -78,14 +78,17 @@ format=text
 # default delimiter is a newline
 format.value.delimiter=\n
 # UTF-8 is the default encoding
-format.value.encoding=UTF-16
+format.value.encoding=UTF-16BE
 # keys will only be written if a delimiter is specified
 format.key.delimiter=\t
-format.key.encoding=UTF-16
+format.key.encoding=UTF-16BE
 ```
 
 NOTE: Only the delimiter you specify is encoded. The bytes of the records will be written unchanged.
  The purpose of the config is to match the delimiter to the record encoding.
+
+Charsets Tip: If using UTF-16, specify `UTF-16BE` or `UTF-16LE` to avoid including an addition 2 byte [BOM](https://en.wikipedia.org/wiki/Byte_order_mark#UTF-16)
+  for every key and value.
 
 ### Custom Format
 

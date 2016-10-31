@@ -8,6 +8,7 @@ import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +24,7 @@ import org.apache.kafka.connect.storage.Converter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.spredfast.kafka.connect.s3.AlreadyBytesConverter;
 import com.spredfast.kafka.connect.s3.Constants;
 import com.spredfast.kafka.connect.s3.Configure;
@@ -45,6 +47,8 @@ public class S3SourceTask extends SourceTask {
 	private S3RecordFormat format;
 	private Optional<Converter> keyConverter;
 	private Converter valueConverter;
+	private long s3PollInterval = 10_000L;
+	private long errorBackoff = 1000L;
 
 	@Override
 	public String version() {
@@ -84,15 +88,27 @@ public class S3SourceTask extends SourceTask {
 
 		Map<S3Partition, S3Offset> offsets = context.offsetStorageReader()
 			.offsets(partitions.stream().map(S3Partition::asMap).collect(toList()))
-			.entrySet().stream().collect(toMap(
+			.entrySet().stream().filter(e -> e.getValue() != null)
+			.collect(toMap(
 				entry -> S3Partition.from(entry.getKey()),
 				entry -> S3Offset.from(entry.getValue())));
 
 		maxPoll = Optional.ofNullable(taskConfig.get("max.poll.records"))
 			.map(Integer::parseInt)
 			.orElse(1000);
+		s3PollInterval = Optional.ofNullable(taskConfig.get("s3.new.record.poll.interval"))
+			.map(Long::parseLong)
+			.orElse(10_000L);
+		errorBackoff = Optional.ofNullable(taskConfig.get("s3.error.backoff"))
+			.map(Long::parseLong)
+			.orElse(1000L);
 
 		AmazonS3 client = S3.s3client(taskConfig);
+
+		Set<String> topics = Optional.ofNullable(taskConfig.get("topics"))
+			.map(Object::toString)
+			.map(s -> Arrays.stream(s.split(",")).collect(toSet()))
+			.orElseGet(HashSet::new);
 
 		S3SourceConfig config = new S3SourceConfig(
 			bucket, prefix,
@@ -100,7 +116,9 @@ public class S3SourceTask extends SourceTask {
 			taskConfig.get("s3.start.marker"),
 			S3FilesReader.DEFAULT_PATTERN,
 			S3FilesReader.InputFilter.GUNZIP,
-			partitionNumbers::contains
+			S3FilesReader.PartitionFilter.from((topic, partition) ->
+				(topics.isEmpty() || topics.contains(topic))
+				&& partitionNumbers.contains(partition))
 		);
 
 		log.debug("{} reading from S3 with offsets {}", taskConfig.get("name"), offsets);
@@ -117,16 +135,38 @@ public class S3SourceTask extends SourceTask {
 		if (stopped.get()) {
 			return results;
 		}
-		// TODO catch AWS exceptions, sleep and retry
 
-		while (!reader.hasNext()) {
+		// AWS errors will happen. Nothing to do about it but sleep and try again.
+		while(!stopped.get()) {
+			try {
+				return getSourceRecords(results);
+			} catch (AmazonS3Exception e) {
+				if (e.isRetryable()) {
+					log.warn("Retryable error while polling. Will sleep and try again.", e);
+					Thread.sleep(errorBackoff);
+					readFromStoredOffsets();
+				} else {
+					// die
+					throw e;
+				}
+			}
+		}
+		return results;
+	}
+
+	private List<SourceRecord> getSourceRecords(List<SourceRecord> results) throws InterruptedException {
+		while (!reader.hasNext() && !stopped.get()) {
 			log.debug("Blocking until new S3 files are available.");
 			// sleep and block here until new files are available
-			Thread.sleep(1000L); // TODO config
+			Thread.sleep(s3PollInterval);
 			readFromStoredOffsets();
 		}
 
-		for (int i = 0; reader.hasNext() && i < maxPoll; i++) {
+		if (stopped.get()) {
+			return results;
+		}
+
+		for (int i = 0; reader.hasNext() && i < maxPoll && !stopped.get(); i++) {
 			SourceRecord record = reader.next();
 			String topic = topicMapping.computeIfAbsent(record.topic(), this::remapTopic);
 			// we know the reader returned bytes so, we can cast the key+value and use a converter to

@@ -7,6 +7,8 @@ import static org.junit.Assert.assertTrue;
 import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.Callable;
@@ -86,14 +88,18 @@ public class KafkaIntegrationTests {
 	}
 
 	public static KafkaConnect givenKafkaConnect(int kafkaPort) throws IOException {
+		return givenKafkaConnect(kafkaPort, ImmutableMap.of());
+	}
+
+	public static KafkaConnect givenKafkaConnect(int kafkaPort, Map<? extends String, ? extends String> overrides) throws IOException {
 		File tempFile = File.createTempFile("connect", "offsets");
-		WorkerConfig config = new StandaloneConfig(ImmutableMap.<String, String>builder()
+		HashMap<String, String> props = new HashMap<>(ImmutableMap.<String, String>builder()
 			.put("bootstrap.servers", "localhost:" + kafkaPort)
 			// perform no conversion
 			.put("key.converter", "com.spredfast.kafka.connect.s3.AlreadyBytesConverter")
 			.put("value.converter", "com.spredfast.kafka.connect.s3.AlreadyBytesConverter")
-			.put("internal.key.converter", "org.apache.kafka.connect.json.JsonConverter")
-			.put("internal.value.converter", "org.apache.kafka.connect.json.JsonConverter")
+			.put("internal.key.converter", QuietJsonConverter.class.getName())
+			.put("internal.value.converter", QuietJsonConverter.class.getName())
 			.put("internal.key.converter.schemas.enable", "true")
 			.put("internal.value.converter.schemas.enable", "true")
 			.put("offset.storage.file.filename", tempFile.getCanonicalPath())
@@ -102,6 +108,8 @@ public class KafkaIntegrationTests {
 			.put("rest.port", "" + InstanceSpec.getRandomPort())
 			.build()
 		);
+		props.putAll(overrides);
+		WorkerConfig config = new StandaloneConfig(props);
 
 		Worker worker = new Worker("1", new SystemTime(), config, new FileOffsetBackingStore());
 		Herder herder = new StandaloneHerder(worker);

@@ -56,10 +56,13 @@ public class DelimitedRecordReader implements RecordReader {
 			if (b == lastByte && baos.size() >= del.length) {
 				byte[] bytes = baos.toByteArray();
 				if (endsWith(bytes, del)) {
-					return bytes;
+					byte[] undelimited = new byte[bytes.length - del.length];
+					System.arraycopy(bytes, 0, undelimited, 0, undelimited.length);
+					return undelimited;
 				}
 			}
 		}
+		// if we got here, we got EOF before we got the delimiter
 		return (baos.size() == 0) ? null : baos.toByteArray();
 	}
 
@@ -71,7 +74,6 @@ public class DelimitedRecordReader implements RecordReader {
 		}
 		return true;
 	}
-
 
 	private static byte[] delimiterBytes(String value, String encoding) throws UnsupportedEncodingException {
 		return ofNullable(value).orElse(TrailingDelimiterFormat.DEFAULT_DELIMITER).getBytes(

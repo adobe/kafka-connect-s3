@@ -30,13 +30,13 @@ public class TrailingDelimiterFormat implements S3RecordFormat, Configurable {
 			.orElse(DEFAULT_DELIMITER)
 			.getBytes(parseEncoding(configs, "value.encoding"));
 
-		if (!keyDelimiter.isPresent() && configs.containsKey("key.encoding")) {
-			throw new IllegalArgumentException("Key encoding specified without delimiter!");
-		}
-
 		keyDelimiter = Optional.ofNullable(configs.get("key.delimiter"))
 			.map(Object::toString)
 			.map(s -> s.getBytes(parseEncoding(configs, "key.encoding")));
+
+		if (!keyDelimiter.isPresent() && configs.containsKey("key.encoding")) {
+			throw new IllegalArgumentException("Key encoding specified without delimiter!");
+		}
 	}
 
 	private Charset parseEncoding(Map<String, ?> configs, String key) {
@@ -55,9 +55,10 @@ public class TrailingDelimiterFormat implements S3RecordFormat, Configurable {
 		).map(o -> o.orElse(NO_BYTES)).filter(arr -> arr.length > 0).collect(toList());
 		int size = bytes.stream().map(arr -> arr.length).reduce(0, (a,b) -> a + b);
 		byte[] result = new byte[size];
-		for (int i = 0, written = 0; i < bytes.size(); i++, written += bytes.get(i).length) {
+		for (int i = 0, written = 0; i < bytes.size(); i++) {
 			byte[] src = bytes.get(i);
 			System.arraycopy(src, 0, result, written, src.length);
+			written += src.length;
 		}
 		return result;
 	}

@@ -12,6 +12,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.BiFunction;
+import java.util.function.BiPredicate;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -81,7 +83,26 @@ public class S3FilesReader implements Iterable<SourceRecord> {
 	}
 
 	public interface PartitionFilter {
+		// convenience for simple filters. Only the 2 argument version will ever be called.
 		boolean matches(int partition);
+
+		default boolean matches(String topic, int partition) {
+			return matches(partition);
+		}
+
+		static PartitionFilter from(BiPredicate<String, Integer> filter) {
+			return new PartitionFilter() {
+				@Override
+				public boolean matches(int partition) {
+					throw new UnsupportedOperationException();
+				}
+
+				@Override
+				public boolean matches(String topic, int partition) {
+					return filter.test(topic, partition);
+				}
+			};
+		}
 
 		PartitionFilter MATCH_ALL = p -> true;
 	}
@@ -132,9 +153,8 @@ public class S3FilesReader implements Iterable<SourceRecord> {
 
 					List<S3ObjectSummary> chunks = new ArrayList<>(objectListing.getObjectSummaries().size() / 2);
 					for (S3ObjectSummary chunk : objectListing.getObjectSummaries()) {
-						if (DATA_SUFFIX.matcher(chunk.getKey()).find() && config.partitionFilter.matches(partition(chunk.getKey()))) {
-
-
+						if (DATA_SUFFIX.matcher(chunk.getKey()).find() && parseKeyUnchecked(chunk.getKey(),
+								(t, p, o) -> config.partitionFilter.matches(t, p))) {
 							S3Offset offset = offset(chunk);
 							if (offset != null) {
 								// if our offset for this partition is beyond this chunk, ignore it
@@ -269,6 +289,14 @@ public class S3FilesReader implements Iterable<SourceRecord> {
 		};
 	}
 
+	private <T> T parseKeyUnchecked(String key, QuietKeyConsumer<T> consumer) {
+		try {
+			return parseKey(key, consumer::consume);
+		} catch (IOException never) {
+			throw new RuntimeException(never);
+		}
+	}
+
 	private <T> T parseKey(String key, KeyConsumer<T> consumer) throws IOException {
 		final Matcher matcher = config.keyPattern.matcher(key);
 		if (!matcher.find()) {
@@ -279,6 +307,11 @@ public class S3FilesReader implements Iterable<SourceRecord> {
 		final long startOffset = Long.parseLong(matcher.group("offset"));
 
 		return consumer.consume(topic, partition, startOffset);
+	}
+
+
+	private interface QuietKeyConsumer<T> {
+		T consume(String topic, int partition, long startOffset);
 	}
 
 	private interface KeyConsumer<T> {

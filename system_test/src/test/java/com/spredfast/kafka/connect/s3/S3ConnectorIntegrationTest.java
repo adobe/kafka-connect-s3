@@ -11,9 +11,9 @@ import static org.junit.Assert.assertEquals;
 import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -32,11 +32,11 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.apache.kafka.connect.storage.StringConverter;
 import org.apache.log4j.ConsoleAppender;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PatternLayout;
-import org.apache.log4j.SimpleLayout;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -56,8 +56,6 @@ import com.spredfast.kafka.connect.s3.source.S3SourceConnector;
 import com.spredfast.kafka.connect.s3.source.S3SourceTask;
 import com.spredfast.kafka.test.KafkaIntegrationTests;
 
-import jnr.ffi.annotations.In;
-
 public class S3ConnectorIntegrationTest {
 
 	private static final String S3_BUCKET = "connect-system-test";
@@ -66,11 +64,15 @@ public class S3ConnectorIntegrationTest {
 	private static KafkaIntegrationTests.KafkaConnect connect;
 	private static FakeS3 s3;
 	private static DefaultDockerClient dockerClient;
+	private static KafkaIntegrationTests.KafkaConnect stringConnect;
 
 	@BeforeClass
 	public static void startKafka() throws Exception {
 		kafka = givenLocalKafka();
 		connect = givenKafkaConnect(kafka.localPort());
+		stringConnect = givenKafkaConnect(kafka.localPort(), ImmutableMap.of(
+			"value.converter", StringConverter.class.getName()
+		));
 		dockerClient = givenDockerClient();
 
 		s3 = FakeS3.create(dockerClient);
@@ -93,10 +95,11 @@ public class S3ConnectorIntegrationTest {
 	@AfterClass
 	public static void stopKafka() throws Exception {
 		System.err.println("NOTE: Can probably ignore all the 'ERROR - CRITICAL:' output. It's expected when bootstrapping a Source.");
-		tryClose(() -> connect.close());
-		tryClose(() -> kafka.close());
+		tryClose(connect);
+		tryClose(stringConnect);
+		tryClose(kafka);
 		tryClose(() -> s3.close(dockerClient));
-		tryClose(() -> dockerClient.close());
+		tryClose(dockerClient);
 	}
 
 	private static void tryClose(AutoCloseable doClose) {
@@ -120,7 +123,7 @@ public class S3ConnectorIntegrationTest {
 
 		whenTheConnectorIsStarted(sinkConfig);
 
-		thenFilesAreWrittenToS3(s3);
+		thenFilesAreWrittenToS3(s3, sinkTopic);
 
 		String sourceTopic = kafka.createUniqueTopic("source-replay-", 2);
 
@@ -137,9 +140,37 @@ public class S3ConnectorIntegrationTest {
 		whenTheConnectorIsStarted(sourceConfig);
 
 		thenMoreMessagesAreRestored(sourceTopic);
-
 	}
 
+	@Test
+	public void stringWithoutKeys() throws Exception {
+		String sinkTopic = kafka.createUniqueTopic("sink-source-", 2);
+
+		Producer<String, String> producer = givenKafkaProducer();
+
+		givenRecords(sinkTopic, producer);
+
+		Map<String, String> sinkConfig = givenStringValues(givenSinkConfig(sinkTopic));
+		whenTheConnectorIsStarted(sinkConfig, stringConnect);
+
+		String sourceTopic = kafka.createUniqueTopic("source-replay-", 2);
+
+		Map<String, String> sourceConfig = givenStringValues(givenSourceConfig(sourceTopic, sinkTopic));
+		whenTheConnectorIsStarted(sourceConfig, stringConnect);
+
+		thenMessagesAreRestored(sourceTopic);
+	}
+
+	private Map<String, String> givenStringValues(Map<String, String> config) {
+		Map<String, String> copy = new HashMap<>(config);
+		copy.remove("key.converter");
+		copy.remove("format.include.keys");
+		copy.remove("format");
+		copy.putAll(ImmutableMap.of(
+			"value.converter", StringConverter.class.getName()
+		));
+		return copy;
+	}
 
 	private void whenConnectIsRestarted() throws IOException {
 		connect = givenKafkaConnect(kafka.localPort());
@@ -167,16 +198,20 @@ public class S3ConnectorIntegrationTest {
 	}
 
 	private void whenTheConnectorIsStarted(Map<String, String> config) {
+		whenTheConnectorIsStarted(config, connect);
+	}
+
+	private void whenTheConnectorIsStarted(Map<String, String> config, KafkaIntegrationTests.KafkaConnect connect) {
 		connect.herder().putConnectorConfig(config.get("name"),
 			config, false, (e, s) -> {});
 	}
 
-	private void thenFilesAreWrittenToS3(AmazonS3 s3) {
+	private void thenFilesAreWrittenToS3(AmazonS3 s3, String sinkTopic) {
 		waitForPassing(Duration.ofSeconds(10), () -> {
 			List<String> keys = s3.listObjects(S3_BUCKET, S3_PREFIX).getObjectSummaries().stream()
 				.map(S3ObjectSummary::getKey).collect(toList());
 			Set<Map.Entry<Integer, Long>> partAndOffset = keys.stream()
-				.filter(key -> key.endsWith(".gz"))
+				.filter(key -> key.endsWith(".gz") && key.contains(sinkTopic))
 				.map(key -> immutableEntry(Integer.parseInt(key.replaceAll(".*?-(\\d{5})-\\d{12}\\.gz", "$1")),
 						Long.parseLong(key.replaceAll(".*?-\\d{5}-(\\d{12})\\.gz", "$1"))))
 				.collect(toSet());
@@ -202,6 +237,7 @@ public class S3ConnectorIntegrationTest {
 			.put("name", sourceTopic + "-s3-source")
 			.put("connector.class", S3SourceConnector.class.getName())
 			.put("tasks.max", "1")
+			.put("topics", sinkTopic)
 			.put("max.partition.count", "2")
 			.put(S3SourceTask.CONFIG_TARGET_TOPIC + "." + sinkTopic, sourceTopic))
 			.build();
@@ -212,6 +248,8 @@ public class S3ConnectorIntegrationTest {
 			.put("format", ByteLengthFormat.class.getName())
 			.put("format.include.keys", "true")
 			.put("key.converter", AlreadyBytesConverter.class.getName())
+
+			.put("s3.new.record.poll.interval", "200") // poll fast
 
 			.put("s3.bucket", S3_BUCKET)
 			.put("s3.prefix", S3_PREFIX)

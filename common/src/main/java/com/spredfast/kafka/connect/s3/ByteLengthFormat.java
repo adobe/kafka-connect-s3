@@ -20,19 +20,19 @@ public class ByteLengthFormat implements S3RecordFormat, Configurable {
 	private static final int LEN_SIZE = 4;
 	private static final byte[] NO_BYTES = {};
 
-	private boolean includesKeys;
+	private Optional<Boolean> includesKeys;
 
 	public ByteLengthFormat() {
 	}
 
 	public ByteLengthFormat(boolean includesKeys) {
-		this.includesKeys = includesKeys;
+		this.includesKeys = includesKeys ? Optional.of(true) : Optional.empty();
 	}
 
 	@Override
 	public void configure(Map<String, ?> configs) {
 		includesKeys = Optional.ofNullable(configs.get("include.keys")).map(Object::toString)
-			.map(Boolean::valueOf).orElse(false);
+			.map(Boolean::valueOf).filter(f -> f);
 	}
 
 	@Override
@@ -42,13 +42,13 @@ public class ByteLengthFormat implements S3RecordFormat, Configurable {
 
 	private byte[] encode(ProducerRecord<byte[], byte[]> r) {
 		// write optionally the key, and the value, each preceded by their length
-		Optional<byte[]> key = Optional.ofNullable(r.key()).filter(k -> includesKeys);
+		byte[] key = includesKeys.flatMap(t -> Optional.ofNullable(r.key())).orElse(NO_BYTES);
 		byte[] value = Optional.ofNullable(r.value()).orElse(NO_BYTES);
-		byte[] result = new byte[LEN_SIZE + value.length + (includesKeys ? key.map(arr -> arr.length).orElse(0) + LEN_SIZE : 0)];
+		byte[] result = new byte[LEN_SIZE + value.length + (includesKeys.map(t -> key.length + LEN_SIZE).orElse(0))];
 		ByteBuffer wrapped = ByteBuffer.wrap(result);
-		key.ifPresent(k -> {
-			wrapped.putInt(k.length);
-			wrapped.put(k);
+		includesKeys.ifPresent(t -> {
+			wrapped.putInt(key.length);
+			wrapped.put(key);
 		});
 		wrapped.putInt(value.length);
 		wrapped.put(value);
@@ -57,7 +57,7 @@ public class ByteLengthFormat implements S3RecordFormat, Configurable {
 
 	@Override
 	public S3RecordsReader newReader() {
-		return new BytesRecordReader(includesKeys);
+		return new BytesRecordReader(includesKeys.isPresent());
 	}
 
 }
