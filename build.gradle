@@ -1,8 +1,6 @@
 apply plugin: 'java'
 apply plugin: 'maven'
 
-version = '0.2.0'
-
 description = "kafka-connect-s3"
 
 buildscript {
@@ -16,13 +14,30 @@ buildscript {
 
 allprojects  {
     apply plugin: 'maven'
+	apply plugin: 'signing'
     apply plugin: 'idea'
 
     group = 'com.spredfast.kafka.connect.s3'
+	version = '0.2.0'
 
 	apply plugin: 'java'
 	sourceCompatibility = 1.8
 	targetCompatibility = 1.8
+
+
+	task javadocJar(type: Jar, dependsOn: javadoc) {
+		classifier = 'javadoc'
+		from tasks.javadoc.destinationDir
+	}
+
+	task sourcesJar(type: Jar) {
+		from sourceSets.main.allSource
+		classifier = 'sources'
+	}
+
+	artifacts {
+		archives javadocJar, sourcesJar
+	}
 
 	repositories {
 		maven { url "http://repo.maven.apache.org/maven2" }
@@ -31,7 +46,6 @@ allprojects  {
 
 apply plugin: "com.github.johnrengelman.shadow"
 
-// our docker image is 0.9.x... These tests are deprecated.
 shadowJar {
 	dependencies {
 		// provided in the connect classpath
@@ -52,4 +66,66 @@ shadowJar {
 dependencies {
 	compile project(':sink')
 	compile project(':source')
+}
+
+artifacts {
+	archives(components.shadow) {
+		name 'kafka-connect-s3-shadow'
+		builtBy shadowJar
+	}
+}
+
+signing {
+	sign configurations.archives
+	keyId = 'F3798F48'
+	password = System.env.KEY_PASS
+	secretKeyRingFile = "${rootDir}/secring"
+}
+
+def ossrhUsername = System.env.OSSRH_USER
+def ossrhPassword = System.env.OSSRH_PASS
+
+uploadArchives {
+	repositories {
+		mavenDeployer {
+			beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+
+			repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
+				authentication(userName: ossrhUsername, password: ossrhPassword)
+			}
+
+			snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
+				authentication(userName: ossrhUsername, password: ossrhPassword)
+			}
+
+			pom.project {
+				name 'Kafka Connect S3'
+				packaging 'jar'
+				// optionally artifactId can be defined here
+				description 'S3 Source and Sink Connectors for Kafka Connect'
+				url 'https://github.com/spredfast/kafka-connect-s3'
+
+				scm {
+					connection 'scm:git:https://github.com/spredfast/kafka-connect-s3.git'
+					developerConnection 'scm:git:https://github.com/spredfast/kafka-connect-s3.git'
+					url 'https://github.com/spredfast/kafka-connect-s3'
+				}
+
+				licenses {
+					license {
+						name 'BSD License'
+						url 'https://github.com/spredfast/kafka-connect-s3/blob/master/LICENSE.md'
+					}
+				}
+
+				developers {
+					developer {
+						id 'iamnoah'
+						name 'Noah Sloan'
+						email 'nsloan@spredfast.com'
+					}
+				}
+			}
+		}
+	}
 }
