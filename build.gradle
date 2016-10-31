@@ -15,7 +15,6 @@ buildscript {
 
 allprojects  {
     apply plugin: 'maven'
-	apply plugin: 'signing'
     apply plugin: 'idea'
 
     group = 'com.spredfast.kafka.connect.s3'
@@ -25,35 +24,35 @@ allprojects  {
 	sourceCompatibility = 1.8
 	targetCompatibility = 1.8
 
-
-	task javadocJar(type: Jar, dependsOn: javadoc) {
-		classifier = 'javadoc'
-		from tasks.javadoc.destinationDir
-	}
-
-	task sourcesJar(type: Jar) {
-		from sourceSets.main.allSource
-		classifier = 'sources'
-	}
-
-	artifacts {
-		archives javadocJar, sourcesJar
-	}
-
 	repositories {
 		maven { url "http://repo.maven.apache.org/maven2" }
-	}
-
-	ext."signing.keyId" = '3D5954DE'
-	ext."signing.password" = System.env.KEY_PASS
-	ext."signing.secretKeyRingFile" = "${rootDir}/secring"
-
-	signing {
-		sign configurations.archives
 	}
 }
 
 apply plugin: "com.github.johnrengelman.shadow"
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+	classifier = 'javadoc'
+	from subprojects*.tasks.javadoc.destinationDir
+}
+
+task sourcesJar(type: Jar) {
+	from subprojects*.sourceSets.main.allSource
+	classifier = 'sources'
+}
+
+artifacts {
+	archives javadocJar, sourcesJar
+}
+
+
+ext."signing.keyId" = '3D5954DE'
+ext."signing.password" = System.env.KEY_PASS
+ext."signing.secretKeyRingFile" = "${rootDir}/secring"
+
+signing {
+	sign configurations.archives
+}
 
 shadowJar {
 	dependencies {
