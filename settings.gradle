@@ -1,5 +1,6 @@
 rootProject.name = 'kafka-connect-s3'
 
+include 'api'
 include 'common'
 include 'sink'
 include 'source'

@@ -1,24 +1,5 @@
 description = "Tests against real Kafka Connect"
 
-buildscript {
-	repositories {
-		jcenter()
-	}
-	dependencies {
-		classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.3'
-	}
-}
-
-apply plugin: "com.github.johnrengelman.shadow"
-
-// our docker image is 0.9.x... These tests are deprecated.
-shadowJar {
-	dependencies {
-		exclude(dependency('org.apache.kafka:connect-api:0.10.0.1'))
-		exclude(dependency('org.apache.kafka:kafka-clients:0.10.0.1'))
-	}
-}
-
 dependencies {
 	compile project(':sink')
 	compile project(':source')
