@@ -86,7 +86,7 @@ artifacts {
 def ossrhUsername = System.env.OSSRH_USER
 def ossrhPassword = System.env.OSSRH_PASS
 
-uploadShadow {
+def mavenConfig = {
 	repositories {
 		mavenDeployer {
 			beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
@@ -130,3 +130,6 @@ uploadShadow {
 		}
 	}
 }
+
+uploadArchives mavenConfig
+uploadShadow mavenConfig
