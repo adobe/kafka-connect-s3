@@ -1,5 +1,6 @@
 apply plugin: 'java'
 apply plugin: 'maven'
+apply plugin: 'signing'
 
 description = "kafka-connect-s3"
 
@@ -42,6 +43,15 @@ allprojects  {
 	repositories {
 		maven { url "http://repo.maven.apache.org/maven2" }
 	}
+
+
+	ext."signing.keyId" = 'F3798F48'
+	ext."signing.password" = System.env.KEY_PASS
+	ext."signing.secretKeyRingFile" = "${rootDir}/secring"
+
+	signing {
+		sign configurations.archives
+	}
 }
 
 apply plugin: "com.github.johnrengelman.shadow"
@@ -73,13 +83,6 @@ artifacts {
 		classifier 'shadow'
 		builtBy tasks.shadowJar
 	}
-}
-
-signing {
-	sign configurations.archives
-	keyId = 'F3798F48'
-	password = System.env.KEY_PASS
-	secretKeyRingFile = "${rootDir}/secring"
 }
 
 def ossrhUsername = System.env.OSSRH_USER
