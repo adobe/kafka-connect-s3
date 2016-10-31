@@ -69,7 +69,7 @@ dependencies {
 }
 
 artifacts {
-	archives(tasks.shadow.shadowJar) {
+	archives(tasks.shadowJar) {
 		classifier 'shadow'
 		builtBy tasks.shadowJar
 	}
