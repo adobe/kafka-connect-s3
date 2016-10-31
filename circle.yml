@@ -18,4 +18,5 @@ deployment:
     owner: spredfast
     commands:
     - echo -n "${SIGN_KEY}" | base64 --decode > secring
-    - ./gradlew uploadShadow uploadArchives
+    - ./gradlew uploadArchives
+    - ./gradlew uploadShadow

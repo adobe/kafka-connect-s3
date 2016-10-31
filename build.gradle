@@ -46,6 +46,7 @@ artifacts {
 }
 
 
+
 ext."signing.keyId" = '3D5954DE'
 ext."signing.password" = System.env.KEY_PASS
 ext."signing.secretKeyRingFile" = "${rootDir}/secring"
