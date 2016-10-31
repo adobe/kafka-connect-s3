@@ -18,7 +18,7 @@ We made the decision to hard fork when it became clear that we would be responsi
 
 ## Important Configuration
 
-Only bytes may be written to S3. A Kafka Connect cluster or standalone worker is configured with [a single key and value converter](http://docs.confluent.io/2.0.0/connect/userguide.html#common-worker-configs).
+Only bytes may be written to S3. A Kafka Connect cluster or standalone worker is configured with [a single key and value converter](http://docs.confluent.io/2.0.0/connect/userguide.html#common-worker-configs)\*.
 
 To get raw bytes for S3 you must either:
 
@@ -42,6 +42,9 @@ To get raw bytes for S3 you must either:
         value.converter=org.apache.kafka.connect.json.JsonConverter
 
 See the [wiki](https://github.com/spredfast/kafka-connect-s3/wiki) for further details.
+
+\* It appears future versions of Connect will support connector level key and value converters. As of 0.10.0.1 however, this support has not been released.
+Both configurations are compatible with that behavior, but you will get the best performance using the `AlreadyBytesConverter`.
 
 ## Build and Run
 
