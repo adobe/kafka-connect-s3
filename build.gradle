@@ -69,9 +69,9 @@ dependencies {
 }
 
 artifacts {
-	archives(components.shadow) {
-		name 'kafka-connect-s3-shadow'
-		builtBy shadowJar
+	archives(tasks.shadow.shadowJar) {
+		classifier 'shadow'
+		builtBy tasks.shadowJar
 	}
 }
 
