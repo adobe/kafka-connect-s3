@@ -23,7 +23,8 @@ allprojects  {
     apply plugin: 'idea'
 
     group = 'com.spredfast.kafka.connect.s3'
-	version = versionDetails().lastTag.replaceAll(/^v/,'')
+	// circle only builds tags, so don't worry if it thinks it is dirty and strip the leading v
+	version = versionDetails().lastTag.replaceAll(/^v/,'').replaceAll(/\.dirty$/, '')
 
 	apply plugin: 'java'
 	sourceCompatibility = 1.8
@@ -86,6 +87,10 @@ artifacts {
 		classifier 'shadow'
 		builtBy tasks.shadowJar
 	}
+}
+
+nexusStaging {
+	numberOfRetries 20
 }
 
 def ossrhUsername = System.env.OSSRH_USER
