@@ -1,5 +1,7 @@
 # Kafka Connect S3
 
+[![CircleCI](https://circleci.com/gh/spredfast/kafka-connect-s3.svg?style=shield)](https://circleci.com/gh/spredfast/kafka-connect-s3)
+
 This is a [kafka-connect](http://kafka.apache.org/documentation.html#connect) sink and source for Amazon S3, but without any dependency on HDFS/hadoop libs or data formats.
 
 ## Spredfast Fork
@@ -18,9 +20,20 @@ We made the decision to hard fork when it became clear that we would be responsi
 
 ## Important Configuration
 
-Only bytes may be written to S3. A Kafka Connect cluster or standalone worker is configured with [a single key and value converter](http://docs.confluent.io/2.0.0/connect/userguide.html#common-worker-configs)\*.
+Only bytes may be written to S3, so you *must* configure the Sink & Source connectors to "convert" to bytes.
 
-To get raw bytes for S3 you must either:
+### 0.10.1.0+
+
+Connect 0.10.1.0 introduced the ability to specify converters at the connector level, so you should specify the `AlreadyBytesConverter` for both the sink and source.
+
+connect-s3/sink.properties:
+
+   key.converter=com.spredfast.kafka.connect.s3.AlreadyBytesConverter
+   value.converter=com.spredfast.kafka.connect.s3.AlreadyBytesConverter
+
+### Pre 0.10.1.0
+
+On older Connect versions only the worker [key and value converters](http://docs.confluent.io/2.0.0/connect/userguide.html#common-worker-configs) can be configured, so to get raw bytes for S3 you must either:
 
  1. Configure your cluster converter to leave records as raw bytes:
 
@@ -29,22 +42,19 @@ To get raw bytes for S3 you must either:
         key.converter=com.spredfast.kafka.connect.s3.AlreadyBytesConverter
         value.converter=com.spredfast.kafka.connect.s3.AlreadyBytesConverter
 
- 2. Configure the S3 connector with the same converter. e.g.,
+ 2. Provide the S3 connector with the same converter (to reverse the process.) e.g.,
 
      connect-worker.properties:
 
         key.converter=org.apache.kafka.connect.json.JsonConverter
         value.converter=org.apache.kafka.connect.json.JsonConverter
 
-     connect-s3-sink/source.properties:
+     connect-s3-sink/sink.properties:
 
         key.converter=org.apache.kafka.connect.json.JsonConverter
         value.converter=org.apache.kafka.connect.json.JsonConverter
 
 See the [wiki](https://github.com/spredfast/kafka-connect-s3/wiki) for further details.
-
-\* It appears future versions of Connect will support connector level key and value converters. As of 0.10.0.1 however, this support has not been released.
-Both configurations are compatible with that behavior, but you will get the best performance using the `AlreadyBytesConverter`.
 
 ## Build and Run
 

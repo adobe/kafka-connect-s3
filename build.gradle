@@ -1,24 +1,29 @@
-apply plugin: 'java'
-apply plugin: 'maven'
-apply plugin: 'signing'
-
-description = "kafka-connect-s3"
-
 buildscript {
 	repositories {
 		jcenter()
 	}
 	dependencies {
 		classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.3'
+		classpath "io.codearte.gradle.nexus:gradle-nexus-staging-plugin:0.5.3"
 	}
 }
+
+plugins {
+	id 'com.palantir.git-version' version '0.5.2'
+}
+
+apply plugin: 'java'
+apply plugin: 'maven'
+apply plugin: 'signing'
+
+description = "kafka-connect-s3"
 
 allprojects  {
     apply plugin: 'maven'
     apply plugin: 'idea'
 
     group = 'com.spredfast.kafka.connect.s3'
-	version = '0.2.0'
+	version = versionDetails().lastTag.replaceAll(/^v/,'')
 
 	apply plugin: 'java'
 	sourceCompatibility = 1.8
@@ -45,8 +50,6 @@ artifacts {
 	archives javadocJar, sourcesJar
 }
 
-
-
 ext."signing.keyId" = '3D5954DE'
 ext."signing.password" = System.env.KEY_PASS
 ext."signing.secretKeyRingFile" = "${rootDir}/secring"
@@ -58,8 +61,8 @@ signing {
 shadowJar {
 	dependencies {
 		// provided in the connect classpath
-		exclude(dependency('org.apache.kafka:connect-api:0.10.0.1'))
-		exclude(dependency('org.apache.kafka:kafka-clients:0.10.0.1'))
+		exclude(dependency('org.apache.kafka:connect-api:0.10.1.0'))
+		exclude(dependency('org.apache.kafka:kafka-clients:0.10.1.0'))
 		exclude(dependency('net.jpountz.lz4:.*:.*'))
 		exclude(dependency('org.xerial.snappy:.*:.*'))
 		exclude(dependency('org.slf4j:.*:.*'))
@@ -68,7 +71,8 @@ shadowJar {
 	// for things we directly depend on, repackage so we don't conflict with other connectors
 	relocate 'com.amazonaws', 'com.spredfast.shade.amazonaws'
 	relocate 'com.fasterxml', 'com.spredfast.shade.fasterxml'
-	relocate 'org.apache', 'com.spredfast.shade.apache'
+	relocate 'org.apache.commons', 'com.spredfast.shade.apache.commons'
+	relocate 'org.apache.http', 'com.spredfast.shade.apache.http'
 	relocate 'org.joda', 'com.spredfast.shade.joda'
 }
 
@@ -86,6 +90,8 @@ artifacts {
 
 def ossrhUsername = System.env.OSSRH_USER
 def ossrhPassword = System.env.OSSRH_PASS
+
+apply plugin: 'io.codearte.nexus-staging'
 
 def mavenConfig = {
 	repositories {

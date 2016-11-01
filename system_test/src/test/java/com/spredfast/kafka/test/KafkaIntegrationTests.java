@@ -1,6 +1,5 @@
 package com.spredfast.kafka.test;
 
-import static com.google.common.base.Preconditions.checkState;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -17,6 +16,7 @@ import java.util.function.IntConsumer;
 
 import org.apache.kafka.common.utils.SystemTime;
 import org.apache.kafka.connect.runtime.Connect;
+import org.apache.kafka.connect.runtime.ConnectorFactory;
 import org.apache.kafka.connect.runtime.Herder;
 import org.apache.kafka.connect.runtime.Worker;
 import org.apache.kafka.connect.runtime.WorkerConfig;
@@ -26,6 +26,7 @@ import org.apache.kafka.connect.runtime.standalone.StandaloneHerder;
 import org.apache.kafka.connect.storage.FileOffsetBackingStore;
 import com.google.common.base.Functions;
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.io.Files;
@@ -37,6 +38,7 @@ import kafka.server.KafkaConfig;
 import kafka.server.KafkaServer;
 import kafka.utils.SystemTime$;
 import scala.Option;
+import scala.collection.JavaConversions;
 
 public class KafkaIntegrationTests {
 
@@ -111,7 +113,7 @@ public class KafkaIntegrationTests {
 		props.putAll(overrides);
 		WorkerConfig config = new StandaloneConfig(props);
 
-		Worker worker = new Worker("1", new SystemTime(), config, new FileOffsetBackingStore());
+		Worker worker = new Worker("1", new SystemTime(), new ConnectorFactory(), config, new FileOffsetBackingStore());
 		Herder herder = new StandaloneHerder(worker);
 		RestServer restServer = new RestServer(config);
 		Connect connect = new Connect(herder, restServer);
@@ -154,7 +156,7 @@ public class KafkaIntegrationTests {
 				.put("log.dir", tmpDir.getCanonicalPath())
 				.put("zookeeper.connect", zk.getConnectString())
 				.build(), Functions.toStringFunction()));
-			kafkaServer = new KafkaServer(config, SystemTime$.MODULE$, Option.empty());
+			kafkaServer = new KafkaServer(config, SystemTime$.MODULE$, Option.empty(), JavaConversions.asScalaBuffer(ImmutableList.of()));
 			kafkaServer.startup();
 		}
 
