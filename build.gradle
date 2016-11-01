@@ -89,14 +89,14 @@ artifacts {
 	}
 }
 
-nexusStaging {
-	numberOfRetries 20
-}
-
 def ossrhUsername = System.env.OSSRH_USER
 def ossrhPassword = System.env.OSSRH_PASS
 
 apply plugin: 'io.codearte.nexus-staging'
+
+nexusStaging {
+	numberOfRetries 20
+}
 
 def mavenConfig = {
 	repositories {
