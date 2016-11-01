@@ -133,4 +133,6 @@ def mavenConfig = {
 }
 
 uploadArchives mavenConfig
-uploadShadow mavenConfig
+uploadArchives.repositories.mavenDeployer.pom.whenConfigured { MavenPom pom ->
+	pom.dependencies = []
+}
