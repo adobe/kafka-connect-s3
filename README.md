@@ -2,6 +2,8 @@
 
 [![CircleCI](https://circleci.com/gh/spredfast/kafka-connect-s3.svg?style=shield)](https://circleci.com/gh/spredfast/kafka-connect-s3)
 
+[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.spredfast.kafka.connect.s3/kafka-connect-s3/badge.svg?style=plastic)](https://maven-badges.herokuapp.com/maven-central/com.spredfast.kafka.connect.s3/kafka-connect-s3)
+
 This is a [kafka-connect](http://kafka.apache.org/documentation.html#connect) sink and source for Amazon S3, but without any dependency on HDFS/hadoop libs or data formats.
 
 ## Spredfast Fork
@@ -17,6 +19,14 @@ Notable differences:
 
 We are very grateful to the DeviantArt team for their original work.
 We made the decision to hard fork when it became clear that we would be responsible for ongoing maintenance.
+
+## Usage
+
+***NOTE***: You want to use the shadow jar produced by this project.
+As a gradle dependency, it is `com.spredfast.kafka.connect.s3:kafka-connect-s3:0.3.0:shadow`.
+The shadow jar ensures there are no conflicts with other libraries.
+
+Use just like any other Connector: add it to the Connect classpath and configure a task. Read the rest of this document for configuration details.
 
 ## Important Configuration
 
@@ -58,7 +68,7 @@ See the [wiki](https://github.com/spredfast/kafka-connect-s3/wiki) for further d
 
 ## Build and Run
 
-You should be able to build this with `./gradlew shadowJar`. Once the jar is generated in target folder include it in  `CLASSPATH` (ex: for Mac users,export `CLASSPATH=.:$CLASSPATH:/fullpath/to/kafka-connect-s3-jar` )
+You should be able to build this with `./gradlew shadowJar`. Once the jar is generated in build/libs, include it in `CLASSPATH` (e.g., export `CLASSPATH=.:$CLASSPATH:/fullpath/to/kafka-connect-s3-jar` )
 
 Run: `bin/connect-standalone.sh  example-connect-worker.properties example-connect-s3-sink.properties`(from the root directory of project, make sure you have kafka on the path, if not then give full path of kafka before `bin`)
 
