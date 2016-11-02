@@ -8,13 +8,13 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.errors.ConnectException;
+import org.apache.kafka.connect.errors.IllegalWorkerStateException;
 import org.apache.kafka.connect.errors.RetriableException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTask;
@@ -57,34 +57,30 @@ public class S3SinkTask extends SinkTask {
 	@Override
 	public void start(Map<String, String> props) throws ConnectException {
 		config = new HashMap<>(props);
-		String chunkThreshold = config.get("compressed_block_size");
-		if (chunkThreshold != null) {
-			try {
-				this.GZIPChunkThreshold = Long.parseLong(chunkThreshold);
-			} catch (NumberFormatException nfe) {
-				// keep default
-			}
-		}
+
+		configGet("compressed_block_size").map(Long::parseLong).ifPresent(chunkThreshold ->
+			this.GZIPChunkThreshold = chunkThreshold);
 
 		recordFormat = Configure.createFormat(props);
 
 		keyConverter = Optional.ofNullable(Configure.buildConverter(config, "key.converter", true, null));
 		valueConverter = Configure.buildConverter(config, "value.converter", false, AlreadyBytesConverter.class);
 
-		String bucket = config.get("s3.bucket");
-		String prefix = config.get("s3.prefix");
-		if (bucket == null || Objects.equals(bucket, "")) {
-			throw new ConnectException("S3 bucket must be configured");
-		}
-		if (prefix == null) {
-			prefix = "";
-		}
+		String bucket = configGet("s3.bucket")
+			.filter(s -> !s.isEmpty())
+			.orElseThrow(() -> new ConnectException("S3 bucket must be configured"));
+		String prefix = configGet("s3.prefix")
+			.orElse("");
 		AmazonS3 s3Client = S3.s3client(config);
 
 		s3 = new S3Writer(bucket, prefix, s3Client);
 
 		// Recover initial assignments
 		open(context.assignment());
+	}
+
+	private Optional<String> configGet(String key) {
+		return Optional.ofNullable(config.get(key));
 	}
 
 	@Override
@@ -117,7 +113,7 @@ public class S3SinkTask extends SinkTask {
 			}
 			log.debug("{} received {} records for {} to archive. Last offset {}", name(), rs.size(), tp,
 				rs.get(rs.size() - 1).kafkaOffset());
-			writeAll(rs, buffer, writers.get(tp));
+			writerGet(tp).ifPresent(w -> writeAll(rs, buffer, w));
 		});
 	}
 
@@ -154,21 +150,23 @@ public class S3SinkTask extends SinkTask {
 	}
 
 	private String name() {
-		return config.get("name");
+		return configGet("name").orElseThrow(() -> new IllegalWorkerStateException("Tasks always have names"));
 	}
 
 	public void finishWriter(BlockGZIPFileWriter writer, TopicPartition tp) throws IOException {
-		writers.get(tp).finish(tp.topic(), tp.partition());
+		writerGet(tp).ifPresent(w -> w.finish(tp.topic(), tp.partition()));
 		writers.remove(tp);
 		writer.close();
 	}
 
+	private Optional<S3RecordsWriter> writerGet(TopicPartition tp) {
+		return Optional.ofNullable(writers.get(tp));
+	}
+
 	private BlockGZIPFileWriter createNextBlockWriter(TopicPartition tp, long nextOffset, S3RecordsWriter newWriter) throws ConnectException, IOException {
 		String name = String.format("%s-%05d", tp.topic(), tp.partition());
-		String path = config.get("local.buffer.dir");
-		if (path == null) {
-			throw new ConnectException("No local buffer file path configured");
-		}
+		String path = configGet("local.buffer.dir")
+			.orElseThrow(() -> new ConnectException("No local buffer file path configured"));
 		return new BlockGZIPFileWriter(name, path, nextOffset, this.GZIPChunkThreshold, newWriter.init(tp.topic(), tp.partition(), nextOffset));
 	}
 

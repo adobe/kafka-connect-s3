@@ -75,10 +75,10 @@ public class S3SourceTask extends SourceTask {
 	}
 
 	private void tryReadFromStoredOffsets() throws UnsupportedEncodingException {
-		String bucket = this.taskConfig.get("s3.bucket");
-		String prefix = this.taskConfig.get("s3.prefix");
+		String bucket = configGet("s3.bucket").orElseThrow(() -> new ConnectException("No bucket configured!"));
+		String prefix = configGet("s3.prefix").orElse("");
 
-		Set<Integer> partitionNumbers = Arrays.stream(this.taskConfig.get("partitions").split(","))
+		Set<Integer> partitionNumbers = Arrays.stream(configGet("partitions").orElseThrow(() -> new IllegalStateException("no assigned parititions!?")).split(","))
 			.map(Integer::parseInt)
 			.collect(toSet());
 		List<S3Partition> partitions = partitionNumbers
@@ -93,27 +93,27 @@ public class S3SourceTask extends SourceTask {
 				entry -> S3Partition.from(entry.getKey()),
 				entry -> S3Offset.from(entry.getValue())));
 
-		maxPoll = Optional.ofNullable(taskConfig.get("max.poll.records"))
+		maxPoll = configGet("max.poll.records")
 			.map(Integer::parseInt)
 			.orElse(1000);
-		s3PollInterval = Optional.ofNullable(taskConfig.get("s3.new.record.poll.interval"))
+		s3PollInterval = configGet("s3.new.record.poll.interval")
 			.map(Long::parseLong)
 			.orElse(10_000L);
-		errorBackoff = Optional.ofNullable(taskConfig.get("s3.error.backoff"))
+		errorBackoff = configGet("s3.error.backoff")
 			.map(Long::parseLong)
 			.orElse(1000L);
 
 		AmazonS3 client = S3.s3client(taskConfig);
 
-		Set<String> topics = Optional.ofNullable(taskConfig.get("topics"))
+		Set<String> topics = configGet("topics")
 			.map(Object::toString)
 			.map(s -> Arrays.stream(s.split(",")).collect(toSet()))
 			.orElseGet(HashSet::new);
 
 		S3SourceConfig config = new S3SourceConfig(
 			bucket, prefix,
-			Integer.parseInt(taskConfig.getOrDefault("s3.page.size", "100")),
-			taskConfig.get("s3.start.marker"),
+			configGet("s3.page.size").map(Integer::parseInt).orElse(100),
+			configGet("s3.start.marker").orElse(null),
 			S3FilesReader.DEFAULT_PATTERN,
 			S3FilesReader.InputFilter.GUNZIP,
 			S3FilesReader.PartitionFilter.from((topic, partition) ->
@@ -121,9 +121,13 @@ public class S3SourceTask extends SourceTask {
 				&& partitionNumbers.contains(partition))
 		);
 
-		log.debug("{} reading from S3 with offsets {}", taskConfig.get("name"), offsets);
+		log.debug("{} reading from S3 with offsets {}", configGet("name"), offsets);
 
 		reader = new S3FilesReader(config, client, offsets, format::newReader).readAll();
+	}
+
+	private Optional<String> configGet(String key) {
+		return Optional.ofNullable(taskConfig.get(key));
 	}
 
 
@@ -179,7 +183,7 @@ public class S3SourceTask extends SourceTask {
 				value.schema(), value.value()));
 		}
 
-		log.debug("{} returning {} records.", taskConfig.get("name"), results.size());
+		log.debug("{} returning {} records.", configGet("name"), results.size());
 		return results;
 	}
 

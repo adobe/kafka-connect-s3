@@ -94,6 +94,7 @@ def ossrhPassword = System.env.OSSRH_PASS
 
 apply plugin: 'io.codearte.nexus-staging'
 
+// not currently working... https://oss.sonatype.org/#stagingRepositories
 nexusStaging {
 	numberOfRetries 20
 }

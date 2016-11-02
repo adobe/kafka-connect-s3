@@ -19,4 +19,4 @@ deployment:
     commands:
     - echo -n "${SIGN_KEY}" | base64 --decode > secring
     - ./gradlew uploadArchives
-    - ./gradlew closeAndPromoteRepository
+    - ./gradlew closeAndPromoteRepository --debug --stacktrace
