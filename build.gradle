@@ -96,7 +96,8 @@ apply plugin: 'io.codearte.nexus-staging'
 
 // not currently working... https://oss.sonatype.org/#stagingRepositories
 nexusStaging {
-	numberOfRetries 20
+	stagingProfileId = "28dfc7f49c610c"
+	numberOfRetries = 20
 }
 
 def mavenConfig = {
