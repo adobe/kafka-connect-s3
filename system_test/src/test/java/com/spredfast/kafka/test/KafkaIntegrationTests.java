@@ -13,6 +13,7 @@ import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
+import java.util.function.Supplier;
 
 import org.apache.kafka.common.utils.SystemTime;
 import org.apache.kafka.connect.runtime.Connect;
@@ -95,6 +96,7 @@ public class KafkaIntegrationTests {
 
 	public static KafkaConnect givenKafkaConnect(int kafkaPort, Map<? extends String, ? extends String> overrides) throws IOException {
 		File tempFile = File.createTempFile("connect", "offsets");
+		System.err.println("Storing offsets at " + tempFile);
 		HashMap<String, String> props = new HashMap<>(ImmutableMap.<String, String>builder()
 			.put("bootstrap.servers", "localhost:" + kafkaPort)
 			// perform no conversion
@@ -111,30 +113,40 @@ public class KafkaIntegrationTests {
 			.build()
 		);
 		props.putAll(overrides);
-		WorkerConfig config = new StandaloneConfig(props);
 
+		return givenKafkaConnect(props);
+	}
+
+	private static KafkaConnect givenKafkaConnect(Map<String, String> props) {
+		WorkerConfig config = new StandaloneConfig(props);
 		Worker worker = new Worker("1", new SystemTime(), new ConnectorFactory(), config, new FileOffsetBackingStore());
 		Herder herder = new StandaloneHerder(worker);
 		RestServer restServer = new RestServer(config);
 		Connect connect = new Connect(herder, restServer);
 		connect.start();
-		return new KafkaConnect(connect, herder);
+		return new KafkaConnect(connect, herder, () -> givenKafkaConnect(props));
 	}
 
 	public static class KafkaConnect implements AutoCloseable {
 
 		private final Connect connect;
 		private final Herder herder;
+		private final Supplier<KafkaConnect> restart;
 
-		public KafkaConnect(Connect connect, Herder herder) {
+		public KafkaConnect(Connect connect, Herder herder, Supplier<KafkaConnect> restart) {
 			this.connect = connect;
 			this.herder = herder;
+			this.restart = restart;
 		}
 
 		@Override
 		public void close() throws Exception {
 			connect.stop();
 			connect.awaitStop();
+		}
+
+		public KafkaConnect restart() {
+			return restart.get();
 		}
 
 		public Herder herder() {

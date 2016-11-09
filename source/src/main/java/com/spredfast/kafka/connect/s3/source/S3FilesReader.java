@@ -12,7 +12,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
@@ -20,8 +19,6 @@ import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.connect.data.Schema;
-import org.apache.kafka.connect.source.SourceRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.amazonaws.AmazonClientException;
@@ -50,7 +47,7 @@ import com.spredfast.kafka.connect.s3.json.ChunksIndex;
  * <p>
  * Any other exception should be considered a permanent failure.
  */
-public class S3FilesReader implements Iterable<SourceRecord> {
+public class S3FilesReader implements Iterable<S3SourceRecord> {
 
 	private static final Logger log = LoggerFactory.getLogger(S3FilesReader.class);
 
@@ -78,7 +75,7 @@ public class S3FilesReader implements Iterable<SourceRecord> {
 		this.makeReader = recordReader;
 	}
 
-	public Iterator<SourceRecord> iterator() {
+	public Iterator<S3SourceRecord> iterator() {
 		return readAll();
 	}
 
@@ -117,8 +114,8 @@ public class S3FilesReader implements Iterable<SourceRecord> {
 		return Integer.parseInt(matcher.group("partition"));
 	}
 
-	public Iterator<SourceRecord> readAll() {
-		return new Iterator<SourceRecord>() {
+	public Iterator<S3SourceRecord> readAll() {
+		return new Iterator<S3SourceRecord>() {
 			String currentKey;
 
 			ObjectListing objectListing;
@@ -268,16 +265,14 @@ public class S3FilesReader implements Iterable<SourceRecord> {
 			}
 
 			@Override
-			public SourceRecord next() {
+			public S3SourceRecord next() {
 				ConsumerRecord<byte[], byte[]> record = iterator.next();
-				return new SourceRecord(
-					S3Partition.from(config.bucket, config.keyPrefix, record.partition()).asMap(),
-					S3Offset.from(currentKey, record.offset()).asMap(),
+				return new S3SourceRecord(
+					S3Partition.from(config.bucket, config.keyPrefix, record.partition()),
+					S3Offset.from(currentKey, record.offset()),
 					record.topic(),
 					record.partition(),
-					Schema.OPTIONAL_BYTES_SCHEMA,
 					record.key(),
-					Schema.BYTES_SCHEMA,
 					record.value()
 				);
 			}

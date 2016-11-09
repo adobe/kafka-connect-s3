@@ -3,7 +3,7 @@ package com.spredfast.kafka.connect.s3.source;
 import java.util.HashMap;
 import java.util.Map;
 
-public class S3Offset {
+public class S3Offset implements Comparable<S3Offset> {
 
 	private final String s3key;
 
@@ -40,5 +40,11 @@ public class S3Offset {
 	@Override
 	public String toString() {
 		return s3key + "@" + offset;
+	}
+
+	@Override
+	public int compareTo(S3Offset o) {
+		int i = s3key.compareTo(o.s3key);
+		return i == 0 ? (int) (offset - o.offset) : i;
 	}
 }

@@ -48,6 +48,7 @@ import com.spredfast.kafka.connect.s3.source.S3FilesReader;
 import com.spredfast.kafka.connect.s3.source.S3Offset;
 import com.spredfast.kafka.connect.s3.source.S3Partition;
 import com.spredfast.kafka.connect.s3.source.S3SourceConfig;
+import com.spredfast.kafka.connect.s3.source.S3SourceRecord;
 
 /**
  * Covers S3 and reading raw byte records. Closer to an integration test.
@@ -206,8 +207,8 @@ public class S3FilesReaderTest {
 
 	private List<String> whenTheRecordsAreRead(S3FilesReader reader) {
 		List<String> results = new ArrayList<>();
-		for (SourceRecord record : reader) {
-			results.add((record.key() == null ? "" : new String((byte[]) record.key()) + "=") + new String((byte[]) record.value()));
+		for (S3SourceRecord record : reader) {
+			results.add((record.key() == null ? "" : new String(record.key()) + "=") + new String(record.value()));
 		}
 		return results;
 	}

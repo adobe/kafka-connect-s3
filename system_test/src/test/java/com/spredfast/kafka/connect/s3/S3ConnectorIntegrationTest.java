@@ -32,6 +32,7 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.apache.kafka.connect.storage.FileOffsetBackingStore;
 import org.apache.kafka.connect.storage.StringConverter;
 import org.apache.log4j.ConsoleAppender;
 import org.apache.log4j.Level;
@@ -40,6 +41,7 @@ import org.apache.log4j.PatternLayout;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.slf4j.LoggerFactory;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.google.common.base.Throwables;
@@ -85,6 +87,7 @@ public class S3ConnectorIntegrationTest {
 		Logger.getLogger(S3SinkTask.class).setLevel(Level.DEBUG);
 		Logger.getLogger(S3SourceTask.class).setLevel(Level.DEBUG);
 		Logger.getLogger(S3FilesReader.class).setLevel(Level.DEBUG);
+		Logger.getLogger(FileOffsetBackingStore.class).setLevel(Level.DEBUG);
 	}
 
 	private static DefaultDockerClient givenDockerClient() throws DockerCertificateException {
@@ -112,7 +115,7 @@ public class S3ConnectorIntegrationTest {
 
 	@Test
 	public void binaryWithKeys() throws Exception {
-		String sinkTopic = kafka.createUniqueTopic("sink-source-", 2);
+		String sinkTopic = kafka.createUniqueTopic("bin-sink-source-", 2);
 
 		Producer<String, String> producer = givenKafkaProducer();
 
@@ -125,7 +128,7 @@ public class S3ConnectorIntegrationTest {
 
 		thenFilesAreWrittenToS3(s3, sinkTopic);
 
-		String sourceTopic = kafka.createUniqueTopic("source-replay-", 2);
+		String sourceTopic = kafka.createUniqueTopic("bin-source-replay-", 2);
 
 		Map<String, String> sourceConfig = givenSourceConfig(sourceTopic, sinkTopic);
 		whenTheConnectorIsStarted(sourceConfig);
@@ -144,7 +147,7 @@ public class S3ConnectorIntegrationTest {
 
 	@Test
 	public void stringWithoutKeys() throws Exception {
-		String sinkTopic = kafka.createUniqueTopic("sink-source-", 2);
+		String sinkTopic = kafka.createUniqueTopic("txt-sink-source-", 2);
 
 		Producer<String, String> producer = givenKafkaProducer();
 
@@ -153,7 +156,7 @@ public class S3ConnectorIntegrationTest {
 		Map<String, String> sinkConfig = givenStringValues(givenSinkConfig(sinkTopic));
 		whenTheConnectorIsStarted(sinkConfig, stringConnect);
 
-		String sourceTopic = kafka.createUniqueTopic("source-replay-", 2);
+		String sourceTopic = kafka.createUniqueTopic("txt-source-replay-", 2);
 
 		Map<String, String> sourceConfig = givenStringValues(givenSourceConfig(sourceTopic, sinkTopic));
 		whenTheConnectorIsStarted(sourceConfig, stringConnect);
@@ -173,7 +176,7 @@ public class S3ConnectorIntegrationTest {
 	}
 
 	private void whenConnectIsRestarted() throws IOException {
-		connect = givenKafkaConnect(kafka.localPort());
+		connect = connect.restart();
 	}
 
 	public void givenMoreData(String sinkTopic, Producer<String, String> producer) throws InterruptedException, ExecutionException, TimeoutException {
@@ -236,7 +239,7 @@ public class S3ConnectorIntegrationTest {
 		return s3Config(ImmutableMap.<String, String>builder()
 			.put("name", sourceTopic + "-s3-source")
 			.put("connector.class", S3SourceConnector.class.getName())
-			.put("tasks.max", "1")
+			.put("tasks.max", "2")
 			.put("topics", sinkTopic)
 			.put("max.partition.count", "2")
 			.put(S3SourceTask.CONFIG_TARGET_TOPIC + "." + sinkTopic, sourceTopic))
@@ -263,7 +266,7 @@ public class S3ConnectorIntegrationTest {
 		return s3Config(ImmutableMap.<String, String>builder()
 			.put("name", sinkTopic + "-s3-sink")
 			.put("connector.class", S3SinkConnector.class.getName())
-			.put("tasks.max", "1")
+			.put("tasks.max", "2")
 			.put("topics", sinkTopic)
 			.put("local.buffer.dir", tempDir.getCanonicalPath()))
 			.build();
@@ -311,9 +314,10 @@ public class S3ConnectorIntegrationTest {
 		});
 
 		boolean startOdd = (start % 2 == 1);
-		List<String> evens = distinctAfter(start, results.get(0)).collect(toList());
-		List<String> odds = distinctAfter(start, results.get(1)).collect(toList());
-		assertEquals("records restored to same partitions, in-order", ImmutableList.of(
+		List<String> evens = results.get(0).stream().skip(start / 2).collect(toList());
+		List<String> odds = results.get(1).stream().skip(start / 2).collect(toList());
+		assertEquals("records restored to same partitions, in-order. Skipped " + results.get(0).subList(0, start /2) + " and "
+			+ results.get(1).subList(0, start /2), ImmutableList.of(
 			ImmutableList.of("value:" + (0 + start), "value:" + (2 + start)),
 			ImmutableList.of("value:" + (1 + start), "value:" + (3 + start))
 		), ImmutableList.of(
