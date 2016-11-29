@@ -33,4 +33,20 @@ ext {
 	pomDesc = 'Datadog Metrics Reporter for S3 Connectors for Kafka Connect'
 }
 
+
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+	classifier = 'javadoc'
+	from tasks.javadoc.destinationDir
+}
+
+task sourcesJar(type: Jar) {
+	classifier = 'sources'
+	from sourceSets.main.allSource
+}
+
+artifacts {
+	archives javadocJar, sourcesJar
+}
+
 apply from: '../../upload.gradle'
