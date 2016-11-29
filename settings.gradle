@@ -6,4 +6,6 @@ include 'sink'
 include 'source'
 include 'system_test'
 
-include 'metrics/datadog'
+include ':metrics-datadog'
+project(':metrics-datadog').projectDir = new File('./metrics/datadog')
+

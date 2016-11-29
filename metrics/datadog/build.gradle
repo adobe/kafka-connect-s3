@@ -27,3 +27,10 @@ shadowJar {
 		exclude 'com.spredfast.kafka.connect.s3.metrics.DatadogMetrics'
 	}
 }
+
+ext {
+	pomHumanName = 'Kafka Connect S3 Datadog Metrics Reporter'
+	pomDesc = 'Datadog Metrics Reporter for S3 Connectors for Kafka Connect'
+}
+
+apply from: '../../upload.gradle'

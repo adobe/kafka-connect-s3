@@ -13,8 +13,6 @@ plugins {
 }
 
 apply plugin: 'java'
-apply plugin: 'maven'
-apply plugin: 'signing'
 
 description = "kafka-connect-s3"
 
@@ -37,27 +35,6 @@ allprojects  {
 
 apply plugin: "com.github.johnrengelman.shadow"
 
-task javadocJar(type: Jar, dependsOn: javadoc) {
-	classifier = 'javadoc'
-	from subprojects*.tasks.javadoc.destinationDir
-}
-
-task sourcesJar(type: Jar) {
-	from subprojects*.sourceSets.main.allSource
-	classifier = 'sources'
-}
-
-artifacts {
-	archives javadocJar, sourcesJar
-}
-
-ext."signing.keyId" = '3D5954DE'
-ext."signing.password" = System.env.KEY_PASS
-ext."signing.secretKeyRingFile" = "${rootDir}/secring"
-
-signing {
-	sign configurations.archives
-}
 
 shadowJar {
 	dependencies {
@@ -82,76 +59,25 @@ dependencies {
 	compile project(':source')
 }
 
-evaluationDependsOn(':metrics/datadog')
+
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+	classifier = 'javadoc'
+	from subprojects*.tasks.javadoc.destinationDir
+}
+
+task sourcesJar(type: Jar) {
+	from subprojects*.sourceSets.main.allSource
+	classifier = 'sources'
+}
 
 artifacts {
-	archives(tasks.shadowJar) {
-		classifier 'shadow'
-		builtBy tasks.shadowJar
-	}
-
-	archives(project(':metrics/datadog').tasks.shadowJar) {
-		name 'kafka-connect-s3-metrics-datadog'
-		classifier 'shadow'
-		builtBy project(':metrics/datadog').tasks.shadowJar
-	}
+	archives javadocJar, sourcesJar
 }
 
-def ossrhUsername = System.env.OSSRH_USER
-def ossrhPassword = System.env.OSSRH_PASS
-
-apply plugin: 'io.codearte.nexus-staging'
-
-// not currently working... https://oss.sonatype.org/#stagingRepositories
-nexusStaging {
-	stagingProfileId = "28dfc7f49c610c"
-	numberOfRetries = 20
+ext {
+	pomHumanName = 'Kafka Connect S3'
+	pomDesc = 'S3 Source and Sink Connectors for Kafka Connect'
 }
 
-uploadArchives {
-	repositories {
-		mavenDeployer {
-			beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
-
-			repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
-				authentication(userName: ossrhUsername, password: ossrhPassword)
-			}
-
-			snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
-				authentication(userName: ossrhUsername, password: ossrhPassword)
-			}
-
-			pom.project {
-				name 'Kafka Connect S3'
-				packaging 'jar'
-				// optionally artifactId can be defined here
-				description 'S3 Source and Sink Connectors for Kafka Connect'
-				url 'https://github.com/spredfast/kafka-connect-s3'
-
-				scm {
-					connection 'scm:git:https://github.com/spredfast/kafka-connect-s3.git'
-					developerConnection 'scm:git:https://github.com/spredfast/kafka-connect-s3.git'
-					url 'https://github.com/spredfast/kafka-connect-s3'
-				}
-
-				licenses {
-					license {
-						name 'BSD License'
-						url 'https://github.com/spredfast/kafka-connect-s3/blob/master/LICENSE.md'
-					}
-				}
-
-				developers {
-					developer {
-						id 'iamnoah'
-						name 'Noah Sloan'
-						email 'nsloan@spredfast.com'
-					}
-				}
-			}
-		}
-	}
-}
-uploadArchives.repositories.mavenDeployer.pom.whenConfigured { MavenPom pom ->
-	pom.dependencies = []
-}
+apply from: 'upload.gradle'
