@@ -91,6 +91,7 @@ artifacts {
 	}
 
 	archives(project(':metrics/datadog').tasks.shadowJar) {
+		baseName 'kafka-connect-s3-metrics-datadog'
 		classifier 'shadow'
 		builtBy project(':metrics/datadog').tasks.shadowJar
 	}
