@@ -1,10 +1,13 @@
 package com.spredfast.kafka.connect.s3;
 
+import static java.util.Optional.ofNullable;
+import static java.util.stream.Collectors.toMap;
+
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Optional;
 
 import org.apache.kafka.common.Configurable;
 import org.apache.kafka.connect.errors.ConnectException;
@@ -62,6 +65,17 @@ public abstract class Configure {
 		}
 	}
 
+	public static Map<String, String> subStringKeys(String classNamePro, Map<String, String> props) {
+		Map<String, String> subKeys = new LinkedHashMap<>();
+		String prefix = classNamePro + ".";
+		for (String p : props.keySet()) {
+			if (p.startsWith(prefix)) {
+				subKeys.put(p.substring(prefix.length()), props.get(p));
+			}
+		}
+		return subKeys;
+	}
+
 	public static Map<String, Object> subKeys(String classNamePro, Map<String, ?> props) {
 		Map<String, Object> subKeys = new LinkedHashMap<>();
 		String prefix = classNamePro + ".";
@@ -73,9 +87,34 @@ public abstract class Configure {
 		return subKeys;
 	}
 
+	/**
+	 * Get the metrics instance to report metrics to.
+	 */
+	public static Metrics metrics(Map<String, String> props) {
+		return ofNullable(props.get("metrics.reporter"))
+			.map(className -> className.equals("datadog") ?
+				"com.spredfast.kafka.connect.s3.metrics.DatadogMetrics" : className)
+			.map(className -> Metrics.getByName(props.getOrDefault("metrics.reporter.name", ""),
+				clazz(className), subStringKeys("metrics.reporter", props)))
+			.orElse(Metrics.NOOP);
+	}
+
+	private static Class<? extends Metrics> clazz(String className) {
+		try {
+			Class<?> aClass = Class.forName(className);
+			if (!Metrics.class.isAssignableFrom(aClass)) {
+				throw new IllegalArgumentException(className + " doesn't implement Metrics!");
+			}
+			//noinspection unchecked
+			return (Class<? extends Metrics>) aClass;
+		} catch (ClassNotFoundException e) {
+			throw new IllegalArgumentException(e);
+		}
+	}
+
 	public static S3RecordFormat createFormat(Map<String, String> props) {
 		try {
-			S3RecordFormat recordFormat = (S3RecordFormat) Optional.ofNullable(props.get("format")).map(Object::toString)
+			S3RecordFormat recordFormat = (S3RecordFormat) ofNullable(props.get("format")).map(Object::toString)
 				.map(name -> FORMAT_ALIAS.getOrDefault(name, name))
 				.map(className -> {
 					try {
@@ -95,4 +134,14 @@ public abstract class Configure {
 		}
 	}
 
+	public static Map<String, String> parseTags(String tagString) {
+		return ofNullable(tagString)
+			.map(s -> Arrays.stream(s.split(","))
+				.map(tag -> tag.split(":"))
+				.collect(toMap(
+					r -> r[0],
+					r -> r[1]
+				)))
+			.orElseGet(HashMap::new);
+	}
 }

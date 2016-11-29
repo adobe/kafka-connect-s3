@@ -1,0 +1,29 @@
+description = "Datadog Metrics Reporter for the Kafka Connect S3 Connector"
+
+dependencies {
+	compile project(':common')
+    compile group: 'org.coursera', name: 'metrics-datadog', version: '1.1.6'
+	compile 'com.google.guava:guava:18.0'
+
+	testCompile group: 'junit', name: 'junit', version: '4.12'
+	testCompile group: 'org.mockito', name: 'mockito-all', version: '1.9.5'
+}
+
+apply plugin: "com.github.johnrengelman.shadow"
+
+shadowJar {
+	baseName = "kafka-connect-s3-metrics-datadog"
+	dependencies {
+		exclude project(':common')
+		exclude project(':api')
+		// try to exclude some transitive dependencies we don't need in there to keep the size down
+		exclude dependency('org.apache.kafka:connect-api:.*')
+		exclude dependency('org.apache.kafka:kafka-clients:.*')
+		exclude dependency('com.amazonaws:aws-java-sdk-s3:.*')
+	}
+
+	// relocate everything except the metrics impl, which is entirely self contained.
+	relocate('', 'com.sf.kcon.metrics.shade.') {
+		exclude 'com.spredfast.kafka.connect.s3.metrics.DatadogMetrics'
+	}
+}

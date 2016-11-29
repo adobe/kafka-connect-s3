@@ -189,7 +189,7 @@ public class KafkaIntegrationTests {
 
 		public String createUniqueTopic(String prefix, int partitions) throws InterruptedException {
 			checkReady();
-			String topic = (prefix + UUID.randomUUID()).replaceAll("[^a-zA-Z0-9._-]", "_");
+			String topic = (prefix + UUID.randomUUID().toString().substring(0, 5)).replaceAll("[^a-zA-Z0-9._-]", "_");
 			AdminUtils.createTopic(kafkaServer.zkUtils(), topic, partitions, 1, new Properties(), AdminUtils.createTopic$default$6());
 			waitForPassing(Duration.ofSeconds(5), () -> {
 				assertTrue(AdminUtils.fetchTopicMetadataFromZk(topic, kafkaServer.zkUtils())

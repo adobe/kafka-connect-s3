@@ -9,7 +9,9 @@ import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.zip.GZIPOutputStream;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -30,7 +32,7 @@ import com.spredfast.kafka.connect.s3.json.ChunksIndex;
  * This is especially useful when the file is an archive in HTTP storage like Amazon S3 where GET request with
  * range headers can allow pulling a small segment from overall compressed file.
  * <p>
- * Note that thanks to GZIP spec, the overall file is perfectly valid and will compress as if it was a single stream
+ * Note that thanks to GZIP spec, the overall file is perfectly valid and will decompress as if it was a single stream
  * with any regular GZIP decoding library or program.
  */
 public class BlockGZIPFileWriter implements Closeable {
@@ -40,6 +42,11 @@ public class BlockGZIPFileWriter implements Closeable {
 	private GZIPOutputStream gzipStream;
 	private CountingOutputStream fileStream;
 	private final ObjectMapper objectMapper = new ObjectMapper();
+	private final Map<String, String> tags;
+
+	public Map<String, String> tags() {
+		return tags;
+	}
 
 	private class Chunk {
 		public long rawBytes = 0;
@@ -108,15 +115,16 @@ public class BlockGZIPFileWriter implements Closeable {
 	}
 
 	public BlockGZIPFileWriter(String filenameBase, String path, long firstRecordOffset, long chunkThreshold) throws IOException {
-		this(filenameBase, path, firstRecordOffset, chunkThreshold, new byte[0]);
+		this(filenameBase, path, firstRecordOffset, chunkThreshold, new byte[0], new HashMap<>());
 	}
 
-	public BlockGZIPFileWriter(String filenameBase, String path, long firstRecordOffset, long chunkThreshold, byte[] header)
+	public BlockGZIPFileWriter(String filenameBase, String path, long firstRecordOffset, long chunkThreshold, byte[] header, Map<String, String> tags)
 		throws IOException {
 		this.filenameBase = filenameBase;
 		this.path = path;
 		this.firstRecordOffset = firstRecordOffset;
 		this.chunkThreshold = chunkThreshold;
+		this.tags = tags;
 
 		chunks = new ArrayList<>();
 

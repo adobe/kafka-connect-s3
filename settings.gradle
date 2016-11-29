@@ -5,3 +5,5 @@ include 'common'
 include 'sink'
 include 'source'
 include 'system_test'
+
+include 'metrics/datadog'

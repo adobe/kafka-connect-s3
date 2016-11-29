@@ -38,12 +38,14 @@ import org.apache.log4j.ConsoleAppender;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PatternLayout;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.LoggerFactory;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -113,6 +115,19 @@ public class S3ConnectorIntegrationTest {
 		}
 	}
 
+	@After
+	public void cleanup() {
+		// stop all the connectors
+		connect.herder().connectors((e, connectors) ->
+			connectors.forEach(this::whenTheSinkIsStopped));
+	}
+
+
+	private void whenTheSinkIsStopped(String name) {
+		connect.herder().putConnectorConfig(name, null, true,
+			(e, c) -> { if (e != null) Throwables.propagate(e); });
+	}
+
 	@Test
 	public void binaryWithKeys() throws Exception {
 		String sinkTopic = kafka.createUniqueTopic("bin-sink-source-", 2);
@@ -143,6 +158,17 @@ public class S3ConnectorIntegrationTest {
 		whenTheConnectorIsStarted(sourceConfig);
 
 		thenMoreMessagesAreRestored(sourceTopic);
+
+		whenTheSinkIsStopped(sinkConfig.get("name"));
+
+		thenTempFilesAreCleanedUp(sinkConfig);
+	}
+
+
+	private void thenTempFilesAreCleanedUp(Map<String, String> sinkConfig) {
+		//noinspection ConstantConditions
+		waitForPassing(Duration.ofSeconds(3), () ->
+			assertEquals(ImmutableList.of(), ImmutableList.copyOf(new File(sinkConfig.get("local.buffer.dir")).list())));
 	}
 
 	@Test

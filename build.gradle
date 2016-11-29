@@ -82,10 +82,17 @@ dependencies {
 	compile project(':source')
 }
 
+evaluationDependsOn(':metrics/datadog')
+
 artifacts {
 	archives(tasks.shadowJar) {
 		classifier 'shadow'
 		builtBy tasks.shadowJar
+	}
+
+	archives(project(':metrics/datadog').tasks.shadowJar) {
+		classifier 'shadow'
+		builtBy project(':metrics/datadog').tasks.shadowJar
 	}
 }
 
@@ -100,7 +107,7 @@ nexusStaging {
 	numberOfRetries = 20
 }
 
-def mavenConfig = {
+uploadArchives {
 	repositories {
 		mavenDeployer {
 			beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
@@ -144,8 +151,6 @@ def mavenConfig = {
 		}
 	}
 }
-
-uploadArchives mavenConfig
 uploadArchives.repositories.mavenDeployer.pom.whenConfigured { MavenPom pom ->
 	pom.dependencies = []
 }
