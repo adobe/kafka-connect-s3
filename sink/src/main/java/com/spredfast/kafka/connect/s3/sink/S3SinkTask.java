@@ -3,7 +3,6 @@ package com.spredfast.kafka.connect.s3.sink;
 import static java.util.Optional.ofNullable;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toMap;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -98,12 +97,8 @@ public class S3SinkTask extends SinkTask {
 	public void stop() throws ConnectException {
 		// delete our temp files
 		for (BlockGZIPFileWriter writer : tmpFiles.values()) {
-			try {
-				log.debug("{} Stopping - Deleting temp file {}", name(), writer.getDataFilePath());
-				writer.delete();
-			} catch (IOException e) {
-				log.warn("Error deleting temp file " + writer.getDataFilePath(), e);
-			}
+			log.debug("{} Stopping - Deleting temp file {}", name(), writer.getDataFilePath());
+			writer.delete();
 		}
 	}
 

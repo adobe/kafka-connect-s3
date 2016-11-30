@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPOutputStream;
 
+import org.apache.kafka.connect.errors.RetriableException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.spredfast.kafka.connect.s3.json.ChunkDescriptor;
 import com.spredfast.kafka.connect.s3.json.ChunksIndex;
@@ -138,7 +139,7 @@ public class BlockGZIPFileWriter implements Closeable {
 		// or specified anywhere so let's be rigorous about it.
 		File file = new File(getDataFilePath());
 		if (!file.getParentFile().exists() && !file.getParentFile().mkdirs()) {
-			throw new IllegalArgumentException("could not create file " + file);
+			throw new RetriableException("could not create file " + file);
 		}
 		FileOutputStream fos = new FileOutputStream(file);
 		fos.getChannel().truncate(0);
@@ -209,12 +210,12 @@ public class BlockGZIPFileWriter implements Closeable {
 		ch.numRecords += toWrite.size();
 	}
 
-	public void delete() throws IOException {
+	public void delete() {
 		deleteIfExists(getDataFilePath());
 		deleteIfExists(getIndexFilePath());
 	}
 
-	private void deleteIfExists(String path) throws IOException {
+	private void deleteIfExists(String path) {
 		File f = new File(path);
 		if (f.exists() && !f.isDirectory()) {
 			//noinspection ResultOfMethodCallIgnored
