@@ -4,10 +4,11 @@ import static java.util.Optional.ofNullable;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toList;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -38,8 +39,7 @@ public class S3SinkTask extends SinkTask {
 
 	private Map<String, String> config;
 
-	private final Map<TopicPartition, BlockGZIPFileWriter> tmpFiles = new HashMap<>();
-	private final Map<TopicPartition, S3RecordsWriter> writers = new HashMap<>();
+	private final Map<TopicPartition, PartitionWriter> partitions = new LinkedHashMap<>();
 
 	private long GZIPChunkThreshold = 67108864;
 
@@ -95,78 +95,41 @@ public class S3SinkTask extends SinkTask {
 
 	@Override
 	public void stop() throws ConnectException {
-		// delete our temp files
-		for (BlockGZIPFileWriter writer : tmpFiles.values()) {
+		// ensure we delete our temp files
+		for (PartitionWriter writer : partitions.values()) {
 			log.debug("{} Stopping - Deleting temp file {}", name(), writer.getDataFilePath());
 			writer.delete();
-		}
-	}
-
-
-	private void writeAll(Collection<SinkRecord> records, BlockGZIPFileWriter buffer, S3RecordsWriter writer) {
-		metrics.hist(records.size(), "putSize", buffer.tags());
-		try (Metrics.StopTimer ignored = metrics.time("writeAll", buffer.tags())) {
-			buffer.write(writer.writeBatch(records.stream().map(record -> new ProducerRecord<>(record.topic(), record.kafkaPartition(),
-				keyConverter.map(c -> c.fromConnectData(record.topic(), record.keySchema(), record.key()))
-					.orElse(null),
-				valueConverter.fromConnectData(record.topic(), record.valueSchema(), record.value())
-			))).collect(toList()));
-		} catch (IOException e) {
-			throw new RetriableException("Failed to write to buffer", e);
 		}
 	}
 
 	@Override
 	public void put(Collection<SinkRecord> records) throws ConnectException {
 		records.stream().collect(groupingBy(record -> new TopicPartition(record.topic(), record.kafkaPartition()))).forEach((tp, rs) -> {
-			BlockGZIPFileWriter buffer = tmpFiles.get(tp);
-			if (buffer == null) {
-				log.error("Trying to put {} records to partition {} which doesn't exist yet", records.size(), tp);
-				throw new ConnectException("Trying to put records for a topic partition that has not be assigned");
-			}
+			long firstOffset = rs.get(0).kafkaOffset();
+			long lastOffset = rs.get(rs.size() - 1).kafkaOffset();
+
 			log.debug("{} received {} records for {} to archive. Last offset {}", name(), rs.size(), tp,
-				rs.get(rs.size() - 1).kafkaOffset());
-			writerGet(tp).ifPresent(w -> writeAll(rs, buffer, w));
+				lastOffset);
+
+			PartitionWriter writer = partitions.computeIfAbsent(tp,
+				t -> initWriter(t, firstOffset));
+			writer.writeAll(rs);
 		});
 	}
 
 	@Override
 	public void flush(Map<TopicPartition, OffsetAndMetadata> offsets) throws ConnectException {
 		Metrics.StopTimer timer = metrics.time("flush", tags);
-		// Don't rely on offsets passed. They have some quirks like including topic partitions that just
-		// got revoked (i.e. we have deleted the writer already). Not sure if this is intended...
-		// https://twitter.com/mr_paul_banks/status/702493772983177218
+
 		log.debug("{} flushing offsets", name());
 
-		// Instead iterate over the writers we do have and get the offsets directly from them.
-		for (Map.Entry<TopicPartition, BlockGZIPFileWriter> entry : tmpFiles.entrySet()) {
-			TopicPartition tp = entry.getKey();
-			BlockGZIPFileWriter writer = entry.getValue();
-			if (writer.getNumRecords() == 0) {
-				continue;
-			}
-			try {
-				Metrics.StopTimer time = metrics.time("s3Put", writer.tags());
+		// XXX the docs for flush say that the offsets given are the same as if we tracked the offsets
+		// of the records given to put, so we should just write whatever we have in our files
+		offsets.keySet().stream()
+			.map(partitions::get)
+			.filter(p -> p != null) // TODO error/warn?
+			.forEach(PartitionWriter::done);
 
-				finishWriter(writer, tp);
-				long nextOffset = s3.putChunk(writer.getDataFilePath(), writer.getIndexFilePath(), tp);
-
-				log.debug("{} Finished {} to {} - Deleting temp file {}", name(), tp, nextOffset, writer.getDataFilePath());
-				writer.delete();
-
-				time.stop();
-
-				// Now reset writer to a new one
-				initWriter(tp, nextOffset);
-
-				log.debug("{} successfully uploaded {} records for {} as {} now at offset {}", name(), writer.getNumRecords(), tp,
-					writer.getDataFileName(), nextOffset);
-			} catch (FileNotFoundException fnf) {
-				throw new ConnectException("Failed to find local dir for temp files", fnf);
-			} catch (IOException e) {
-				throw new RetriableException("Failed S3 upload", e);
-			}
-		}
 		timer.stop();
 	}
 
@@ -174,77 +137,95 @@ public class S3SinkTask extends SinkTask {
 		return configGet("name").orElseThrow(() -> new IllegalWorkerStateException("Tasks always have names"));
 	}
 
-	public void finishWriter(BlockGZIPFileWriter writer, TopicPartition tp) throws IOException {
-		writerGet(tp).ifPresent(w -> w.finish(tp.topic(), tp.partition()));
-		writers.remove(tp);
-		writer.close();
-	}
-
-	private Optional<S3RecordsWriter> writerGet(TopicPartition tp) {
-		return ofNullable(writers.get(tp));
-	}
-
-	private BlockGZIPFileWriter createNextBlockWriter(TopicPartition tp, long nextOffset, S3RecordsWriter newWriter) throws ConnectException, IOException {
-		String name = String.format("%s-%05d", tp.topic(), tp.partition());
-		String path = configGet("local.buffer.dir")
-			.orElseThrow(() -> new ConnectException("No local buffer file path configured"));
-		log.debug("New temp file: {}/{} @ {}", path, name, nextOffset);
-		Map<String, String> tags = new HashMap<>(this.tags);
-		tags.put("kafka_topic", tp.topic());
-		tags.put("kafka_partition", "" + tp.partition());
-		return new BlockGZIPFileWriter(name, path, nextOffset, this.GZIPChunkThreshold, newWriter.init(tp.topic(), tp.partition(), nextOffset), tags);
-	}
-
 	@Override
 	public void close(Collection<TopicPartition> partitions) {
-		for (TopicPartition tp : partitions) {
-			// See if this is a new assignment
-			BlockGZIPFileWriter writer = this.tmpFiles.remove(tp);
-			if (writer != null) {
-				log.info("Revoked partition {} Deleting temp file {}", tp, writer.getDataFileName());
-				try {
-					finishWriter(writer, tp);
-					writer.delete();
-				} catch (IOException ioe) {
-					throw new ConnectException("Failed to resume TopicPartition form S3", ioe);
-				}
-			}
-		}
+		// have already flushed, so just ensure the temp files are deleted (in case flush threw an exception)
+		partitions.stream()
+			.map(this.partitions::get)
+			.filter(p -> p != null)
+			.forEach(PartitionWriter::delete);
 	}
 
 	@Override
 	public void open(Collection<TopicPartition> partitions) {
-		for (TopicPartition tp : partitions) {
-			// See if this is a new assignment
-			if (this.tmpFiles.get(tp) == null) {
-				log.info("Assigned new partition {} creating buffer writer", tp);
-				try {
-					recoverPartition(tp);
-				} catch (IOException ioe) {
-					throw new ConnectException("Failed to resume TopicPartition from S3", ioe);
-				}
-			}
+		// nothing to do. we will create files when we are given the first record for a partition
+		// offsets are managed by Connect
+	}
+
+	private PartitionWriter initWriter(TopicPartition tp, long offset) {
+		try {
+			return new PartitionWriter(tp, offset);
+		} catch (IOException e) {
+			throw new RetriableException("Error initializing writer for " + tp + " at offset " + offset, e);
 		}
 	}
 
-	private void recoverPartition(TopicPartition tp) throws IOException {
-		this.context.pause(tp);
+	private class PartitionWriter {
+		private final TopicPartition tp;
+		private final BlockGZIPFileWriter writer;
+		private final S3RecordsWriter format;
+		private final Map<String, String> tags;
+		private boolean finished;
+		private boolean closed;
 
-		// Recover last committed offset from S3
-		long offset = s3.fetchOffset(tp);
+		private PartitionWriter(TopicPartition tp, long firstOffset) throws IOException {
+			this.tp = tp;
+			format = recordFormat.newWriter();
 
-		log.info("Recovering partition {} from offset {}", tp, offset);
+			String name = String.format("%s-%05d", tp.topic(), tp.partition());
+			String path = configGet("local.buffer.dir")
+				.orElseThrow(() -> new ConnectException("No local buffer file path configured"));
+			log.debug("New temp file: {}/{} @ {}", path, name, firstOffset);
 
-		initWriter(tp, offset);
+			Map<String, String> writerTags = new HashMap<>(S3SinkTask.this.tags);
+			writerTags.put("kafka_topic", tp.topic());
+			writerTags.put("kafka_partition", "" + tp.partition());
+			this.tags = writerTags;
 
-		this.context.offset(tp, offset);
-		this.context.resume(tp);
+			writer = new BlockGZIPFileWriter(name, path, firstOffset, GZIPChunkThreshold, format.init(tp.topic(), tp.partition(), firstOffset));
+		}
+
+		private void writeAll(Collection<SinkRecord> records) {
+			metrics.hist(records.size(), "putSize", tags);
+			try (Metrics.StopTimer ignored = metrics.time("writeAll", tags)) {
+				writer.write(format.writeBatch(records.stream().map(record -> new ProducerRecord<>(record.topic(), record.kafkaPartition(),
+					keyConverter.map(c -> c.fromConnectData(record.topic(), record.keySchema(), record.key()))
+						.orElse(null),
+					valueConverter.fromConnectData(record.topic(), record.valueSchema(), record.value())
+				))).collect(toList()), records.size());
+			} catch (IOException e) {
+				throw new RetriableException("Failed to write to buffer", e);
+			}
+		}
+
+		public String getDataFilePath() {
+			return writer.getDataFilePath();
+		}
+
+		public void delete() {
+			writer.delete();
+			partitions.remove(tp);
+		}
+
+		public void done() {
+			Metrics.StopTimer time = metrics.time("s3Put", tags);
+			try {
+				if (!finished) {
+					writer.write(Arrays.asList(format.finish(tp.topic(), tp.partition())), 0);
+					finished = true;
+				}
+				if (!closed) {
+					writer.close();
+					closed = true;
+				}
+				s3.putChunk(writer.getDataFilePath(), writer.getIndexFilePath(), tp);
+			} catch (IOException e) {
+				throw new RetriableException("Error flushing " + tp, e);
+			}
+
+			delete();
+			time.stop();
+		}
+
 	}
-
-	private void initWriter(TopicPartition tp, long offset) throws IOException {
-		S3RecordsWriter newWriter = recordFormat.newWriter();
-		tmpFiles.put(tp, createNextBlockWriter(tp, offset, newWriter));
-		writers.put(tp, newWriter);
-	}
-
 }

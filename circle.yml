@@ -4,7 +4,6 @@ machine:
 
 dependencies:
   pre:
-    - ./gradlew classes testClasses
     - docker pull lphoward/fake-s3 # pre-cache for integration tests
 
 test:

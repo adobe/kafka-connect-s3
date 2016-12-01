@@ -74,7 +74,7 @@ public class BlockGZIPFileWriterTest {
 			totalUncompressedBytes += line.length() + 1;
 			// Expect to read without newlines...
 			expectedLines[i] = line;
-			w.write(toRecord(line));
+			w.write(toRecord(line), 1);
 		}
 
 		assertEquals(50, w.getNumRecords());
@@ -173,7 +173,7 @@ public class BlockGZIPFileWriterTest {
 			String[] expectedLines = new String[5000];
 			for (int i = 0; i < 5000; i++) {
 				String line = String.format("Record %d", i);
-				w.write(toRecord(line));
+				w.write(toRecord(line), 1);
 				expectedLines[i] = line;
 			}
 
@@ -195,7 +195,7 @@ public class BlockGZIPFileWriterTest {
 			String[] expectedLines2 = new String[10];
 			for (int i = 0; i < 10; i++) {
 				String line = String.format("Overwrite record %d", i);
-				w.write(toRecord(line));
+				w.write(toRecord(line), 1);
 				expectedLines2[i] = line;
 			}
 
@@ -217,7 +217,7 @@ public class BlockGZIPFileWriterTest {
 		String[] expectedLines = new String[5000];
 		for (int i = 0; i < 5000; i++) {
 			String line = String.format("Record %d", i);
-			w.write(toRecord(line));
+			w.write(toRecord(line), 1);
 			expectedLines[i] = line;
 		}
 

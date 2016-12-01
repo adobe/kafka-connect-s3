@@ -9,9 +9,7 @@ import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.zip.GZIPOutputStream;
 
 import org.apache.kafka.connect.errors.RetriableException;
@@ -43,11 +41,6 @@ public class BlockGZIPFileWriter implements Closeable {
 	private GZIPOutputStream gzipStream;
 	private CountingOutputStream fileStream;
 	private final ObjectMapper objectMapper = new ObjectMapper();
-	private final Map<String, String> tags;
-
-	public Map<String, String> tags() {
-		return tags;
-	}
 
 	private class Chunk {
 		public long rawBytes = 0;
@@ -116,16 +109,15 @@ public class BlockGZIPFileWriter implements Closeable {
 	}
 
 	public BlockGZIPFileWriter(String filenameBase, String path, long firstRecordOffset, long chunkThreshold) throws IOException {
-		this(filenameBase, path, firstRecordOffset, chunkThreshold, new byte[0], new HashMap<>());
+		this(filenameBase, path, firstRecordOffset, chunkThreshold, new byte[0]);
 	}
 
-	public BlockGZIPFileWriter(String filenameBase, String path, long firstRecordOffset, long chunkThreshold, byte[] header, Map<String, String> tags)
+	public BlockGZIPFileWriter(String filenameBase, String path, long firstRecordOffset, long chunkThreshold, byte[] header)
 		throws IOException {
 		this.filenameBase = filenameBase;
 		this.path = path;
 		this.firstRecordOffset = firstRecordOffset;
 		this.chunkThreshold = chunkThreshold;
-		this.tags = tags;
 
 		chunks = new ArrayList<>();
 
@@ -183,7 +175,12 @@ public class BlockGZIPFileWriter implements Closeable {
 	}
 
 
-	public void write(List<byte[]> toWrite) throws IOException {
+	/**
+	 *
+	 * @param toWrite the bytes to write.
+	 * @param recordCount how many records these bytes represent.
+	 */
+	public void write(List<byte[]> toWrite, long recordCount) throws IOException {
 		Chunk ch = currentChunk();
 
 		int rawBytesToWrite = 0;
@@ -207,7 +204,7 @@ public class BlockGZIPFileWriter implements Closeable {
 		}
 
 		ch.rawBytes += rawBytesToWrite;
-		ch.numRecords += toWrite.size();
+		ch.numRecords += recordCount;
 	}
 
 	public void delete() {
@@ -245,7 +242,7 @@ public class BlockGZIPFileWriter implements Closeable {
 	private void writeIndex() throws IOException {
 		File indexFile = new File(getIndexFilePath());
 		if (!indexFile.getParentFile().exists() && !indexFile.getParentFile().mkdirs()) {
-			throw new IllegalArgumentException("Cannot create index " + indexFile);
+			throw new IOException("Cannot create index " + indexFile);
 		}
 
 		objectMapper.writer().writeValue(indexFile, ChunksIndex.of(chunks.stream()

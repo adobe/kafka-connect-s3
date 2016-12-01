@@ -68,12 +68,11 @@ public class KafkaIntegrationTests {
 		});
 	}
 
-	public static void waitForPassing(Duration timeout, Callable<?> test) {
+	public static <T> T waitForPassing(Duration timeout, Callable<T> test) {
 		AssertionError last = null;
 		for (int i = 0; i < timeout.toMillis() / SLEEP_INTERVAL; i++) {
 			try {
-				test.call();
-				return;
+				return test.call();
 			} catch (AssertionError e) {
 				last = e;
 				try {
@@ -88,6 +87,7 @@ public class KafkaIntegrationTests {
 		if (last != null) {
 			throw last;
 		}
+		return null;
 	}
 
 	public static KafkaConnect givenKafkaConnect(int kafkaPort) throws IOException {
@@ -188,15 +188,23 @@ public class KafkaIntegrationTests {
 		}
 
 		public String createUniqueTopic(String prefix, int partitions) throws InterruptedException {
+			return createUniqueTopic(prefix, partitions, new Properties());
+		}
+
+		public String createUniqueTopic(String prefix, int partitions, Properties topicConfig) throws InterruptedException {
 			checkReady();
 			String topic = (prefix + UUID.randomUUID().toString().substring(0, 5)).replaceAll("[^a-zA-Z0-9._-]", "_");
-			AdminUtils.createTopic(kafkaServer.zkUtils(), topic, partitions, 1, new Properties(), AdminUtils.createTopic$default$6());
+			AdminUtils.createTopic(kafkaServer.zkUtils(), topic, partitions, 1, topicConfig, AdminUtils.createTopic$default$6());
 			waitForPassing(Duration.ofSeconds(5), () -> {
 				assertTrue(AdminUtils.fetchTopicMetadataFromZk(topic, kafkaServer.zkUtils())
 					.partitionMetadata().stream()
 					.allMatch(pm -> !pm.leader().isEmpty()));
 			});
 			return topic;
+		}
+
+		public void updateTopic(String topic, Properties topicConfig) {
+			AdminUtils.changeTopicConfig(kafkaServer.zkUtils(), topic, topicConfig);
 		}
 
 		public void checkReady() throws InterruptedException {

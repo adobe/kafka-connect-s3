@@ -63,7 +63,7 @@ public class S3WriterTest {
 	private BlockGZIPFileWriter createDummmyFiles(long offset, int numRecords) throws Exception {
 		BlockGZIPFileWriter writer = new BlockGZIPFileWriter("bar-00000", tmpDir, offset);
 		for (int i = 0; i < numRecords; i++) {
-			writer.write(Arrays.asList(String.format("Record %d", i).getBytes()));
+			writer.write(Arrays.asList(String.format("Record %d", i).getBytes()), 1);
 		}
 		writer.close();
 		return writer;

@@ -1,6 +1,9 @@
 package com.spredfast.kafka.connect.s3;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.FileAttribute;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -28,9 +31,11 @@ public class FakeS3 {
 		this.container = container;
 	}
 
-	public static FakeS3 create(DockerClient dockerClient) throws DockerException, InterruptedException {
+	public static FakeS3 create(DockerClient dockerClient) throws DockerException, InterruptedException, IOException {
 		// make sure we have the image
 		dockerClient.pull(IMAGE, System.err::println);
+
+		Path directory = Files.createTempDirectory("fakeS3");
 
 		// bind a fakes3 image to a random host port
 		int port = InstanceSpec.getRandomPort();
