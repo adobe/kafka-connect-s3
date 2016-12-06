@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.TimeZone;
 
 import org.apache.kafka.common.TopicPartition;
 import com.amazonaws.auth.profile.ProfileCredentialsProvider;
@@ -35,6 +36,7 @@ import com.spredfast.kafka.connect.s3.json.ChunksIndex;
  * but for now it's just to keep things simpler to test.
  */
 public class S3Writer {
+	private static final TimeZone UTC = TimeZone.getTimeZone("UTC");
 	private final ObjectReader reader = new ObjectMapper().reader(ChunksIndex.class);
 	private String keyPrefix;
 	private String bucket;
@@ -132,6 +134,7 @@ public class S3Writer {
 	private String getChunkFileKey(String localFilePath) {
 		Path p = Paths.get(localFilePath);
 		SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd");
+		df.setTimeZone(UTC);
 		return String.format("%s%s/%s", keyPrefix, df.format(new Date()), p.getFileName().toString());
 	}
 
