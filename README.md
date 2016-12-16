@@ -6,6 +6,13 @@
 
 This is a [kafka-connect](http://kafka.apache.org/documentation.html#connect) sink and source for Amazon S3, but without any dependency on HDFS/hadoop libs or data formats.
 
+Key Features:
+
+ * Block GZip output - This keeps storage costs low.
+ * Accurately reflects source topic - The original partition and offset of your records are recorded in S3. This allows you to:
+ * Easily read from a specific topic and partition - Index files make reading a particular offset very efficient, so you only have to download the data that you need.
+ * Seek to a date & time - Your bucket will be broken into daily prefixes, which makes it possible to find data that was written around a specific date and time.
+
 ## Spredfast Fork
 
 This is a hard fork of the [S3 Sink created by DeviantArt](https://github.com/DeviantArt/kafka-connect-s3).
@@ -32,14 +39,29 @@ Use just like any other Connector: add it to the Connect classpath and configure
 
 Only bytes may be written to S3, so you *must* configure the Sink & Source connectors to "convert" to bytes.
 
+### Worker vs. Connector Settings
+
+There are important settings for your Kafka Connect cluster itself, and important settings for individual connectors.
+The following puts cluster settings in `connect-worker.properties` and individual Connector settings in their respective files.
+
+### Recommended Worker Configs
+
+connect-worker.properties:
+
+    # too many records can overwhelm the poll loop on large topics and will result in
+    # Connect continously rebalancing without making progress
+    consumer.max.poll.records=500
+    # Flushing to S3 can take some time, so allow for more than the default 5 seconds when shutting down.
+    task.shutdown.graceful.timeout.ms=30000
+
 ### 0.10.1.0+
 
 Connect 0.10.1.0 introduced the ability to specify converters at the connector level, so you should specify the `AlreadyBytesConverter` for both the sink and source.
 
 connect-s3/sink.properties:
 
-   key.converter=com.spredfast.kafka.connect.s3.AlreadyBytesConverter
-   value.converter=com.spredfast.kafka.connect.s3.AlreadyBytesConverter
+    key.converter=com.spredfast.kafka.connect.s3.AlreadyBytesConverter
+    value.converter=com.spredfast.kafka.connect.s3.AlreadyBytesConverter
 
 ### Pre 0.10.1.0
 
