@@ -114,6 +114,14 @@ public class S3FilesReader implements Iterable<S3SourceRecord> {
 		return Integer.parseInt(matcher.group("partition"));
 	}
 
+	private String topic(String key) {
+		final Matcher matcher = config.keyPattern.matcher(key);
+		if (!matcher.find()) {
+			throw new IllegalArgumentException("Not a valid chunk filename! " + key);
+		}
+		return matcher.group("topic");
+	}
+
 	public Iterator<S3SourceRecord> readAll() {
 		return new Iterator<S3SourceRecord>() {
 			String currentKey;
@@ -197,7 +205,7 @@ public class S3FilesReader implements Iterable<S3SourceRecord> {
 			}
 
 			private S3Offset offset(S3ObjectSummary chunk) {
-				return offsets.get(S3Partition.from(config.bucket, config.keyPrefix, partition(chunk.getKey())));
+				return offsets.get(S3Partition.from(config.bucket, config.keyPrefix, topic(chunk.getKey()), partition(chunk.getKey())));
 			}
 
 			/**
@@ -268,7 +276,7 @@ public class S3FilesReader implements Iterable<S3SourceRecord> {
 			public S3SourceRecord next() {
 				ConsumerRecord<byte[], byte[]> record = iterator.next();
 				return new S3SourceRecord(
-					S3Partition.from(config.bucket, config.keyPrefix, record.partition()),
+					S3Partition.from(config.bucket, config.keyPrefix, record.topic(), record.partition()),
 					S3Offset.from(currentKey, record.offset()),
 					record.topic(),
 					record.partition(),

@@ -27,10 +27,16 @@ Notable differences:
 We are very grateful to the DeviantArt team for their original work.
 We made the decision to hard fork when it became clear that we would be responsible for ongoing maintenance.
 
+## Changelog
+
+ * 0.4.0
+ 	 * BREAKING CHANGE: Changed the way S3Source offsets are stored to accommodate multiple topics in the same
+ 	   day prefix. Not compatible with old offsets.
+
 ## Usage
 
 ***NOTE***: You want to use the shadow jar produced by this project.
-As a gradle dependency, it is `com.spredfast.kafka.connect.s3:kafka-connect-s3:0.3.0:shadow`.
+As a gradle dependency, it is `com.spredfast.kafka.connect.s3:kafka-connect-s3:0.4.0:shadow`.
 The shadow jar ensures there are no conflicts with other libraries.
 
 Use just like any other Connector: add it to the Connect classpath and configure a task. Read the rest of this document for configuration details.

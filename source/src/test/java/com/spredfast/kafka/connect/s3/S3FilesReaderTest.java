@@ -128,7 +128,7 @@ public class S3FilesReaderTest {
 	S3FilesReader givenAReaderWithOffsets(AmazonS3 client, String marker, long nextOffset, final String partition) {
 		Map<S3Partition, S3Offset> offsets = new HashMap<>();
 		int partInt = Integer.valueOf(partition, 10);
-		offsets.put(S3Partition.from("bucket", "prefix", partInt),
+		offsets.put(S3Partition.from("bucket", "prefix", "topic", partInt),
 			S3Offset.from(marker, nextOffset - 1 /* an S3 offset is the last record processed, so go back 1 to consume next */));
 		return new S3FilesReader(new S3SourceConfig("bucket", "prefix", 1, null, S3FilesReader.DEFAULT_PATTERN, S3FilesReader.InputFilter.GUNZIP,
 			p -> partInt == p), client, offsets, () -> new BytesRecordReader(true));

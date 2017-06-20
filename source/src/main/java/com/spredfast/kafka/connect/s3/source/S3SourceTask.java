@@ -82,9 +82,15 @@ public class S3SourceTask extends SourceTask {
 		Set<Integer> partitionNumbers = Arrays.stream(configGet("partitions").orElseThrow(() -> new IllegalStateException("no assigned parititions!?")).split(","))
 			.map(Integer::parseInt)
 			.collect(toSet());
+
+		Set<String> topics = configGet("topics")
+			.map(Object::toString)
+			.map(s -> Arrays.stream(s.split(",")).collect(toSet()))
+			.orElseGet(HashSet::new);
+
 		List<S3Partition> partitions = partitionNumbers
 			.stream()
-			.map(p -> S3Partition.from(bucket, prefix, p))
+			.flatMap(p -> topics.stream().map(t -> S3Partition.from(bucket, prefix, t, p)))
 			.collect(toList());
 
 		// need to maintain internal offset state forever. task will be committed and stopped if
@@ -110,10 +116,6 @@ public class S3SourceTask extends SourceTask {
 
 		AmazonS3 client = S3.s3client(taskConfig);
 
-		Set<String> topics = configGet("topics")
-			.map(Object::toString)
-			.map(s -> Arrays.stream(s.split(",")).collect(toSet()))
-			.orElseGet(HashSet::new);
 
 		S3SourceConfig config = new S3SourceConfig(
 			bucket, prefix,
