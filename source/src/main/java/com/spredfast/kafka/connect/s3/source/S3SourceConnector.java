@@ -11,14 +11,14 @@ import java.util.Optional;
 import java.util.stream.IntStream;
 
 import org.apache.kafka.common.config.ConfigDef;
-import org.apache.kafka.connect.connector.Connector;
 import org.apache.kafka.connect.connector.Task;
+import org.apache.kafka.connect.source.SourceConnector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.spredfast.kafka.connect.s3.Configure;
 import com.spredfast.kafka.connect.s3.Constants;
 
-public class S3SourceConnector extends Connector {
+public class S3SourceConnector extends SourceConnector {
 
 	private static final int DEFAULT_PARTITION_COUNT = 200;
 	private static final String MAX_PARTITION_COUNT = "max.partition.count";
