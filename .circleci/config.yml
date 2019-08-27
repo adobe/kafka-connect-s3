@@ -24,8 +24,16 @@ workflows:
         reports_path: build/reports
   release-artifacts:
     jobs:
-    - upload:
+    - build:
         filters:
+          tags:
+            only: /v[0-9]+\.[0-9]+\.[0-9]+/
+    - upload:
+        requires:
+          - build
+        filters:
+          branches:
+            only: /.*/
           tags:
             only: /v[0-9]+\.[0-9]+\.[0-9]+/
 
