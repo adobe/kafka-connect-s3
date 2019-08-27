@@ -16,6 +16,7 @@ jobs:
         command: ./gradlew closeAndPromoteRepository --debug --stacktrace
   test:
     docker:
+      - image: circleci/openjdk:8-jdk-node
       - image: lphoward/fake-s3
     steps:
       - checkout
