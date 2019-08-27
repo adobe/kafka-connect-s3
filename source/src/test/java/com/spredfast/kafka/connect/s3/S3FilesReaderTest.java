@@ -23,6 +23,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Stream;
 
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -61,7 +63,7 @@ public class S3FilesReaderTest {
 
 		final AmazonS3 client = givenAMockS3Client(dir);
 
-		List<String> results = whenTheRecordsAreRead(client, true);
+		List<String> results = whenTheRecordsAreRead(client, true, 3);
 
 		thenTheyAreFilteredAndInOrder(results);
 	}
@@ -220,7 +222,7 @@ public class S3FilesReaderTest {
 				final ListObjectsRequest req = (ListObjectsRequest) invocationOnMock.getArguments()[0];
 				ObjectListing listing = new ObjectListing();
 
-				final List<File> files = new ArrayList<>();
+				final Set<File> files = new TreeSet<>();
 				Files.walkFileTree(dir, new SimpleFileVisitor<Path>() {
 					@Override
 					public FileVisitResult preVisitDirectory(Path toCheck, BasicFileAttributes attrs) throws IOException {
@@ -242,12 +244,17 @@ public class S3FilesReaderTest {
 				});
 
 				List<S3ObjectSummary> summaries = new ArrayList<>();
-				for (int i = 0; i < req.getMaxKeys() && i < files.size(); i++) {
-					S3ObjectSummary summary = new S3ObjectSummary();
-					String key = key(files.get(i));
-					summary.setKey(key);
-					listing.setNextMarker(key);
-					summaries.add(summary);
+				int count = 0;
+				for (File file : files) {
+					if (count++ < req.getMaxKeys()) {
+						S3ObjectSummary summary = new S3ObjectSummary();
+						String key = key(file);
+						summary.setKey(key);
+						listing.setNextMarker(key);
+							summaries.add(summary);
+					} else {
+						break;
+					}
 				}
 
 				listing.setMaxKeys(req.getMaxKeys());
