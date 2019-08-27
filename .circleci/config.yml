@@ -1,6 +1,4 @@
 version: 2.1
-orbs:
-  gradle: circleci/gradle@1.0.11
 jobs:
   upload:
     docker:
@@ -16,26 +14,42 @@ jobs:
     - run:
         name: Close and Promote
         command: ./gradlew closeAndPromoteRepository --debug --stacktrace
+  test:
+    docker:
+      - image: lphoward/fake-s3
+    steps:
+      - checkout
+      - run:
+          name: Run Tests
+          command: ./gradlew test
+      - run:
+          name: Save test results
+          command: |
+            mkdir -p ~/test-results/junit/
+            find . -type f -regex ".*/build/test-results/.*xml" -exec cp {} ~/test-results/junit/ \;
+          when: always
+      - store_test_results:
+          path: ~/test-results
+      - store_artifacts:
+          path: ~/test-results/junit
 workflows:
   test:
     jobs:
-    - gradle/test:
-        test_results_path: build/test_results/
-        reports_path: build/reports
+    - test
   release-artifacts:
     jobs:
-    - gradle/test:
-        test_results_path: build/test_results/
-        reports_path: build/reports
+    - test:
         filters:
+          branches:
+            only: master
           tags:
             only: /v[0-9]+\.[0-9]+\.[0-9]+/
     - upload:
         requires:
-          - gradle/test
+          - test
         filters:
           branches:
-            only: /.*/
+            only: master
           tags:
             only: /v[0-9]+\.[0-9]+\.[0-9]+/
 
