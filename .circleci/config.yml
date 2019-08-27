@@ -24,13 +24,15 @@ workflows:
         reports_path: build/reports
   release-artifacts:
     jobs:
-    - build:
+    - gradle/test:
+        test_results_path: build/test_results/
+        reports_path: build/reports
         filters:
           tags:
             only: /v[0-9]+\.[0-9]+\.[0-9]+/
     - upload:
         requires:
-          - test
+          - gradle/test
         filters:
           branches:
             only: /.*/
