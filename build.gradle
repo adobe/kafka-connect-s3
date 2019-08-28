@@ -13,6 +13,7 @@ plugins {
 }
 
 apply plugin: 'java'
+apply plugin: 'io.codearte.nexus-staging'
 
 description = "kafka-connect-s3"
 
