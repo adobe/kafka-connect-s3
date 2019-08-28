@@ -72,7 +72,7 @@ task sourcesJar(type: Jar) {
 }
 
 jar {
-	from subprojects*.sourceSets.main.allSource
+	from subprojects*.sourceSets.main.output
 }
 
 artifacts {
