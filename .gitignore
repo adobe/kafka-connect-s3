@@ -3,3 +3,4 @@ local-*
 .idea
 *.iml
 .gradle
+out

@@ -71,6 +71,10 @@ task sourcesJar(type: Jar) {
 	classifier = 'sources'
 }
 
+jar {
+	from subprojects*.sourceSets.main.allSource
+}
+
 artifacts {
 	archives javadocJar, sourcesJar
 }

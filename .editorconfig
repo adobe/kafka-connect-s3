@@ -28,3 +28,8 @@ indent_size = 1
 # PEP8
 [*.py]
 indent_size = 4
+
+# YAML
+[*.yml]
+indent_style = space
+indent_size = 2

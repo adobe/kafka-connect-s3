@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Objects;
 
 public class S3Partition {
+
 	private final String bucket;
 	private final String keyPrefix;
 	private final String topic;
@@ -41,6 +42,22 @@ public class S3Partition {
 		map.put("topic", topic);
 		map.put("kafkaPartition", partition);
 		return map;
+	}
+
+	public String getBucket() {
+		return bucket;
+	}
+
+	public String getKeyPrefix() {
+		return keyPrefix;
+	}
+
+	public String getTopic() {
+		return topic;
+	}
+
+	public int getPartition() {
+		return partition;
 	}
 
 	@Override
