@@ -5,8 +5,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -27,6 +26,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Stream;
 
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaAndValue;
@@ -215,8 +215,13 @@ public class S3FilesReaderTest {
 	}
 
 	private AmazonS3 givenAMockS3Client(final Path dir) {
-		final AmazonS3 client = mock(AmazonS3Client.class);
-		when(client.listObjects(any(ListObjectsRequest.class))).thenAnswer(new Answer<ObjectListing>() {
+		final HashMap<String, String> config = new HashMap<>();
+		config.put(S3ConfigurationConfig.S3_BUCKET_CONFIG, "test");
+		config.put(S3ConfigurationConfig.S3_ENDPOINT_URL_CONFIG, "s3.my-region.mock.com");
+
+		final AmazonS3 client = spy(S3.s3client(config));
+
+		doAnswer(new Answer<ObjectListing>() {
 			@Override
 			public ObjectListing answer(InvocationOnMock invocationOnMock) throws Throwable {
 				final ListObjectsRequest req = (ListObjectsRequest) invocationOnMock.getArguments()[0];
@@ -251,7 +256,7 @@ public class S3FilesReaderTest {
 						String key = key(file);
 						summary.setKey(key);
 						listing.setNextMarker(key);
-							summaries.add(summary);
+						summaries.add(summary);
 					} else {
 						break;
 					}
@@ -268,36 +273,33 @@ public class S3FilesReaderTest {
 			private String key(File file) {
 				return file.getAbsolutePath().substring(dir.toAbsolutePath().toString().length() + 1);
 			}
-		});
-		when(client.listNextBatchOfObjects(any(ObjectListing.class))).thenCallRealMethod();
-		when(client.listNextBatchOfObjects(any(ListNextBatchOfObjectsRequest.class))).thenCallRealMethod();
+		}).when(client).listObjects(any(ListObjectsRequest.class));
 
-		when(client.getObject(anyString(), anyString())).thenAnswer(new Answer<S3Object>() {
-			@Override
-			public S3Object answer(InvocationOnMock invocationOnMock) throws Throwable {
-				String key = (String) invocationOnMock.getArguments()[1];
-				return getFile(key, dir);
+
+		doCallRealMethod().when(client).listNextBatchOfObjects(any(ObjectListing.class));
+		doCallRealMethod().when(client).listNextBatchOfObjects(any(ListNextBatchOfObjectsRequest.class));
+
+		doAnswer((Answer<S3Object>) invocationOnMock -> {
+			String key = (String) invocationOnMock.getArguments()[1];
+			return getFile(key, dir);
+		}).when(client).getObject(anyString(), anyString());
+
+
+		doAnswer((Answer<S3Object>) invocationOnMock -> {
+			String key = ((GetObjectRequest) invocationOnMock.getArguments()[0]).getKey();
+			return getFile(key, dir);
+		}).when(client).getObject(any(GetObjectRequest.class));
+
+		doAnswer((Answer<S3Object>) invocationOnMock -> {
+			String key = (String) invocationOnMock.getArguments()[1];
+			if (!new File(dir.toString(), key).exists()) {
+				AmazonServiceException e = new AmazonServiceException("Nope: " + key);
+				e.setErrorCode("NoSuchKey");
+				throw e;
 			}
-		});
-		when(client.getObject(any(GetObjectRequest.class))).thenAnswer(new Answer<S3Object>() {
-			@Override
-			public S3Object answer(InvocationOnMock invocationOnMock) throws Throwable {
-				String key = ((GetObjectRequest) invocationOnMock.getArguments()[0]).getKey();
-				return getFile(key, dir);
-			}
-		});
-		when(client.getObjectMetadata(anyString(), anyString())).thenAnswer(new Answer<S3Object>() {
-			@Override
-			public S3Object answer(InvocationOnMock invocationOnMock) throws Throwable {
-				String key = (String) invocationOnMock.getArguments()[1];
-				if (!new File(dir.toString(), key).exists()) {
-					AmazonServiceException e = new AmazonServiceException("Nope: " + key);
-					e.setErrorCode("NoSuchKey");
-					throw e;
-				}
-				return null;
-			}
-		});
+			return null;
+		}).when(client).getObjectMetadata(anyString(), anyString());
+
 		return client;
 	}
 

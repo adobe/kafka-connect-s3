@@ -64,7 +64,7 @@ public class S3FilesReader implements Iterable<S3SourceRecord> {
 
 	private final Map<S3Partition, S3Offset> offsets;
 
-	private final ObjectReader indexParser = new ObjectMapper().reader(ChunksIndex.class);
+	private final ObjectReader indexParser = new ObjectMapper().readerFor(ChunksIndex.class);
 
 	private final S3SourceConfig config;
 

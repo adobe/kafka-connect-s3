@@ -108,7 +108,7 @@ public class BlockGZIPFileWriterTest {
 	}
 
 	private void verifyIndexFile(BlockGZIPFileWriter w, int startOffset, String[] expectedRecords) throws Exception {
-		ChunksIndex index = new ObjectMapper().reader(ChunksIndex.class).readValue(new FileReader(w.getIndexFilePath()));
+		ChunksIndex index = new ObjectMapper().readerFor(ChunksIndex.class).readValue(new FileReader(w.getIndexFilePath()));
 
 		assertEquals(w.getNumChunks(), index.chunks.size());
 

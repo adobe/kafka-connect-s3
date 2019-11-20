@@ -381,7 +381,7 @@ public class S3ConnectorIntegrationTest {
 			new ArrayList<>()
 		);
 		waitForPassing(Duration.ofSeconds(30), () -> {
-			ConsumerRecords<String, String> records = consumer.poll(500L);
+			ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(500L));
 			StreamSupport.stream(records.spliterator(), false)
 				.filter(r -> !"skip".equals(r.key()))
 				.forEach(r -> results.get(r.partition()).add(r.value()));
