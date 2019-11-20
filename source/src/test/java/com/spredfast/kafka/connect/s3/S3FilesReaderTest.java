@@ -221,7 +221,7 @@ public class S3FilesReaderTest {
 
 		final AmazonS3 client = spy(S3.s3client(config));
 
-		when(client.listObjects((ListObjectsRequest)notNull())).thenAnswer(new Answer<ObjectListing>() {
+		doAnswer(new Answer<ObjectListing>() {
 			@Override
 			public ObjectListing answer(InvocationOnMock invocationOnMock) throws Throwable {
 				final ListObjectsRequest req = (ListObjectsRequest) invocationOnMock.getArguments()[0];
@@ -256,7 +256,7 @@ public class S3FilesReaderTest {
 						String key = key(file);
 						summary.setKey(key);
 						listing.setNextMarker(key);
-							summaries.add(summary);
+						summaries.add(summary);
 					} else {
 						break;
 					}
@@ -273,37 +273,114 @@ public class S3FilesReaderTest {
 			private String key(File file) {
 				return file.getAbsolutePath().substring(dir.toAbsolutePath().toString().length() + 1);
 			}
-		});
+		}).when(client).listObjects(any(ListObjectsRequest.class));
 
-		when(client.listNextBatchOfObjects(any(ObjectListing.class))).thenCallRealMethod();
-		when(client.listNextBatchOfObjects(any(ListNextBatchOfObjectsRequest.class))).thenCallRealMethod();
+//		when(client.listObjects(any(ListObjectsRequest.class))).thenAnswer(new Answer<ObjectListing>() {
+//			@Override
+//			public ObjectListing answer(InvocationOnMock invocationOnMock) throws Throwable {
+//				final ListObjectsRequest req = (ListObjectsRequest) invocationOnMock.getArguments()[0];
+//				ObjectListing listing = new ObjectListing();
+//
+//				final Set<File> files = new TreeSet<>();
+//				Files.walkFileTree(dir, new SimpleFileVisitor<Path>() {
+//					@Override
+//					public FileVisitResult preVisitDirectory(Path toCheck, BasicFileAttributes attrs) throws IOException {
+//						if (toCheck.startsWith(dir)) {
+//							return FileVisitResult.CONTINUE;
+//						}
+//						return FileVisitResult.SKIP_SUBTREE;
+//					}
+//
+//					@Override
+//					public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+//						String key = key(file.toFile());
+//						if (req.getMarker() == null
+//							|| key.compareTo(req.getMarker()) > 0) {
+//							files.add(file.toFile());
+//						}
+//						return FileVisitResult.CONTINUE;
+//					}
+//				});
+//
+//				List<S3ObjectSummary> summaries = new ArrayList<>();
+//				int count = 0;
+//				for (File file : files) {
+//					if (count++ < req.getMaxKeys()) {
+//						S3ObjectSummary summary = new S3ObjectSummary();
+//						String key = key(file);
+//						summary.setKey(key);
+//						listing.setNextMarker(key);
+//							summaries.add(summary);
+//					} else {
+//						break;
+//					}
+//				}
+//
+//				listing.setMaxKeys(req.getMaxKeys());
+//
+//				listing.getObjectSummaries().addAll(summaries);
+//				listing.setTruncated(files.size() > req.getMaxKeys());
+//
+//				return listing;
+//			}
+//
+//			private String key(File file) {
+//				return file.getAbsolutePath().substring(dir.toAbsolutePath().toString().length() + 1);
+//			}
+//		});
 
-		when(client.getObject(anyString(), anyString())).thenAnswer(new Answer<S3Object>() {
-			@Override
-			public S3Object answer(InvocationOnMock invocationOnMock) throws Throwable {
-				String key = (String) invocationOnMock.getArguments()[1];
-				return getFile(key, dir);
+		doCallRealMethod().when(client).listNextBatchOfObjects(any(ObjectListing.class));
+		//when(client.listNextBatchOfObjects(any(ObjectListing.class))).thenCallRealMethod();
+		doCallRealMethod().when(client).listNextBatchOfObjects(any(ListNextBatchOfObjectsRequest.class));
+		//when(client.listNextBatchOfObjects(any(ListNextBatchOfObjectsRequest.class))).thenCallRealMethod();
+
+		doAnswer((Answer<S3Object>) invocationOnMock -> {
+			String key = (String) invocationOnMock.getArguments()[1];
+			return getFile(key, dir);
+		}).when(client).getObject(anyString(), anyString());
+
+//		when(client.getObject(anyString(), anyString())).thenAnswer(new Answer<S3Object>() {
+//			@Override
+//			public S3Object answer(InvocationOnMock invocationOnMock) throws Throwable {
+//				String key = (String) invocationOnMock.getArguments()[1];
+//				return getFile(key, dir);
+//			}
+//		});
+		doAnswer((Answer<S3Object>) invocationOnMock -> {
+			String key = ((GetObjectRequest) invocationOnMock.getArguments()[0]).getKey();
+			return getFile(key, dir);
+		}).when(client).getObject(any(GetObjectRequest.class));
+
+//		when(client.getObject(any(GetObjectRequest.class))).thenAnswer(new Answer<S3Object>() {
+//			@Override
+//			public S3Object answer(InvocationOnMock invocationOnMock) throws Throwable {
+//				String key = ((GetObjectRequest) invocationOnMock.getArguments()[0]).getKey();
+//				return getFile(key, dir);
+//			}
+//		});
+
+		doAnswer((Answer<S3Object>) invocationOnMock -> {
+			String key = (String) invocationOnMock.getArguments()[1];
+			if (!new File(dir.toString(), key).exists()) {
+				AmazonServiceException e = new AmazonServiceException("Nope: " + key);
+				e.setErrorCode("NoSuchKey");
+				throw e;
 			}
-		});
-		when(client.getObject(any(GetObjectRequest.class))).thenAnswer(new Answer<S3Object>() {
-			@Override
-			public S3Object answer(InvocationOnMock invocationOnMock) throws Throwable {
-				String key = ((GetObjectRequest) invocationOnMock.getArguments()[0]).getKey();
-				return getFile(key, dir);
-			}
-		});
-		when(client.getObjectMetadata(anyString(), anyString())).thenAnswer(new Answer<S3Object>() {
-			@Override
-			public S3Object answer(InvocationOnMock invocationOnMock) throws Throwable {
-				String key = (String) invocationOnMock.getArguments()[1];
-				if (!new File(dir.toString(), key).exists()) {
-					AmazonServiceException e = new AmazonServiceException("Nope: " + key);
-					e.setErrorCode("NoSuchKey");
-					throw e;
-				}
-				return null;
-			}
-		});
+			return null;
+		}).when(client).getObjectMetadata(anyString(), anyString());
+
+//		when(client.getObjectMetadata(anyString(), anyString())).thenAnswer(new Answer<S3Object>() {
+//			@Override
+//			public S3Object answer(InvocationOnMock invocationOnMock) throws Throwable {
+//				String key = (String) invocationOnMock.getArguments()[1];
+//				if (!new File(dir.toString(), key).exists()) {
+//					AmazonServiceException e = new AmazonServiceException("Nope: " + key);
+//					e.setErrorCode("NoSuchKey");
+//					throw e;
+//				}
+//				return null;
+//			}
+//		});
 		return client;
 	}
 
