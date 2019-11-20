@@ -64,7 +64,7 @@ public class S3 {
 
 		String region = config.getString(REGION_CONFIG);
 		String url = config.getString(S3_ENDPOINT_URL_CONFIG);
-		if (url != "" && url != null) {
+		if (url == null || url.equals("")) {
 			builder = "us-east-1".equals(region)
 				? builder.withRegion(Regions.US_EAST_1)
 				: builder.withRegion(region);

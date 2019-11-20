@@ -156,6 +156,18 @@ public class S3ConfigurationConfig extends HashMap<String, Object> {
 			);
 
 			configDef.define(
+				S3_ENDPOINT_URL_CONFIG,
+				Type.STRING,
+				S3_ENDPOINT_URL_DEFAULT,
+				Importance.MEDIUM,
+				"The S3 endpoint.",
+				group,
+				++orderInGroup,
+				Width.LONG,
+				"S3 Endpoint"
+			);
+
+			configDef.define(
 				PART_SIZE_CONFIG,
 				Type.INT,
 				PART_SIZE_DEFAULT,

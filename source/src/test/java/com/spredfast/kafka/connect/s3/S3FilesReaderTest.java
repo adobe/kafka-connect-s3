@@ -5,8 +5,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -27,6 +26,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Stream;
 
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaAndValue;
@@ -215,8 +215,13 @@ public class S3FilesReaderTest {
 	}
 
 	private AmazonS3 givenAMockS3Client(final Path dir) {
-		final AmazonS3 client = mock(AmazonS3Client.class);
-		when(client.listObjects(any(ListObjectsRequest.class))).thenAnswer(new Answer<ObjectListing>() {
+		final HashMap<String, String> config = new HashMap<>();
+		config.put(S3ConfigurationConfig.S3_BUCKET_CONFIG, "test");
+		config.put(S3ConfigurationConfig.S3_ENDPOINT_URL_CONFIG, "s3.my-region.mock.com");
+
+		final AmazonS3 client = spy(S3.s3client(config));
+
+		when(client.listObjects((ListObjectsRequest)notNull())).thenAnswer(new Answer<ObjectListing>() {
 			@Override
 			public ObjectListing answer(InvocationOnMock invocationOnMock) throws Throwable {
 				final ListObjectsRequest req = (ListObjectsRequest) invocationOnMock.getArguments()[0];
@@ -269,6 +274,7 @@ public class S3FilesReaderTest {
 				return file.getAbsolutePath().substring(dir.toAbsolutePath().toString().length() + 1);
 			}
 		});
+
 		when(client.listNextBatchOfObjects(any(ObjectListing.class))).thenCallRealMethod();
 		when(client.listNextBatchOfObjects(any(ListNextBatchOfObjectsRequest.class))).thenCallRealMethod();
 
