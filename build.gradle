@@ -40,8 +40,8 @@ apply plugin: "com.github.johnrengelman.shadow"
 shadowJar {
 	dependencies {
 		// provided in the connect classpath
-//		exclude(dependency('org.apache.kafka:connect-api:0.10.1.0'))
-//		exclude(dependency('org.apache.kafka:kafka-clients:0.10.1.0'))
+		exclude(dependency('org.apache.kafka:connect-api:2.0.0'))
+		exclude(dependency('org.apache.kafka:kafka-clients:2.0.0'))
 		exclude(dependency('net.jpountz.lz4:.*:.*'))
 		exclude(dependency('org.xerial.snappy:.*:.*'))
 		exclude(dependency('org.slf4j:.*:.*'))
