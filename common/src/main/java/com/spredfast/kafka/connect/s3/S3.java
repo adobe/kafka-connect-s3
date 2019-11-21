@@ -38,12 +38,10 @@ public class S3 {
 	 * @param config the S3 configuration.
 	 * @return S3 client's configuration
 	 */
-	protected static ClientConfiguration newClientConfiguration(S3ConfigurationConfig config) {
+	private static ClientConfiguration newClientConfiguration(S3ConfigurationConfig config) {
 
 		ClientConfiguration clientConfiguration = PredefinedClientConfigurations.defaultConfig();
-		clientConfiguration.withUserAgentPrefix("Spredfast Kafka-S3 Connect / 1.0");
-		clientConfiguration.setSignerOverride("AWS3SignerType");
-
+		clientConfiguration = clientConfiguration.withUserAgentPrefix("Spredfast Kafka-S3 Connect / 1.0").withSignerOverride("AWS3SignerType");
 		return clientConfiguration;
 	}
 
@@ -55,7 +53,7 @@ public class S3 {
 	 * @param config the S3 configuration.
 	 * @return S3 client
 	 */
-	public static AmazonS3 newS3Client(S3ConfigurationConfig config) {
+	private static AmazonS3 newS3Client(S3ConfigurationConfig config) {
 		ClientConfiguration clientConfiguration = newClientConfiguration(config);
 		AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard()
 			.withAccelerateModeEnabled(
