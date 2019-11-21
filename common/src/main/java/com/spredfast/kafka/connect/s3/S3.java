@@ -42,6 +42,7 @@ public class S3 {
 
 		ClientConfiguration clientConfiguration = PredefinedClientConfigurations.defaultConfig();
 		clientConfiguration.withUserAgentPrefix("Spredfast Kafka-S3 Connect / 1.0");
+		clientConfiguration.setSignerOverride("AWS3SignerType");
 
 		return clientConfiguration;
 	}
