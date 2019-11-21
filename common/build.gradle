@@ -3,7 +3,7 @@ description = ""
 dependencies {
 	compile project(':api')
     compile group: 'org.apache.kafka', name: 'connect-api', version: '2.0.0'
-    compile group: 'com.amazonaws', name: 'aws-java-sdk-s3', version: '1.11.642'
+    compile group: 'com.amazonaws', name: 'aws-java-sdk-s3', version: '1.11.86'
 
 	testCompile group: 'junit', name: 'junit', version: '4.12'
 	testCompile group: 'org.mockito', name: 'mockito-all', version: '1.9.5'
