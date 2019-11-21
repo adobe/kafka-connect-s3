@@ -70,7 +70,6 @@ public class S3 {
 				? builder.withRegion(Regions.US_EAST_1)
 				: builder.withRegion(region);
 		} else {
-			builder.withRegion(region);
 			builder = builder.withEndpointConfiguration(
 				new AwsClientBuilder.EndpointConfiguration(url, region)
 			);
