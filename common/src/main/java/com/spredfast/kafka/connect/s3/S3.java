@@ -10,6 +10,7 @@ import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.regions.Region;
+import com.amazonaws.regions.RegionUtils;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.retry.PredefinedBackoffStrategies;
 import com.amazonaws.retry.PredefinedRetryPolicies;
@@ -55,7 +56,6 @@ public class S3 {
 	 */
 	public static AmazonS3 newS3Client(S3ConfigurationConfig config) {
 		ClientConfiguration clientConfiguration = newClientConfiguration(config);
-		clientConfiguration.setSignerOverride("S3SignerType");
 		AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard()
 			.withAccelerateModeEnabled(
 				Boolean.valueOf(config.getString(WAN_MODE_CONFIG))
@@ -70,6 +70,7 @@ public class S3 {
 				? builder.withRegion(Regions.US_EAST_1)
 				: builder.withRegion(region);
 		} else {
+			builder.withRegion(region);
 			builder = builder.withEndpointConfiguration(
 				new AwsClientBuilder.EndpointConfiguration(url, region)
 			);
