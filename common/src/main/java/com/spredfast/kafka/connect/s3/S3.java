@@ -41,7 +41,9 @@ public class S3 {
 	private static ClientConfiguration newClientConfiguration(S3ConfigurationConfig config) {
 
 		ClientConfiguration clientConfiguration = PredefinedClientConfigurations.defaultConfig();
-		clientConfiguration = clientConfiguration.withUserAgentPrefix("Spredfast Kafka-S3 Connect / 1.0").withSignerOverride("AWS3SignerType");
+		clientConfiguration.withUserAgentPrefix("Spredfast Kafka-S3 Connect / 1.0");
+		clientConfiguration.withSignerOverride("AWS3SignerType");
+		clientConfiguration.withUseExpectContinue(Boolean.valueOf(config.getString(HEADERS_USE_EXPECT_CONTINUE_CONFIG)));
 		return clientConfiguration;
 	}
 
