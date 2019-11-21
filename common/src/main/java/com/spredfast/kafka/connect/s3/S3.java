@@ -55,6 +55,7 @@ public class S3 {
 	 */
 	public static AmazonS3 newS3Client(S3ConfigurationConfig config) {
 		ClientConfiguration clientConfiguration = newClientConfiguration(config);
+		clientConfiguration.setSignerOverride("S3SignerType");
 		AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard()
 			.withAccelerateModeEnabled(
 				Boolean.valueOf(config.getString(WAN_MODE_CONFIG))
