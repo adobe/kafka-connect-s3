@@ -48,11 +48,11 @@ shadowJar {
 	}
 
 	// for things we directly depend on, repackage so we don't conflict with other connectors
-	//relocate 'com.amazonaws', 'com.spredfast.shade.amazonaws'
-	//relocate 'com.fasterxml', 'com.spredfast.shade.fasterxml'
-	//relocate 'org.apache.commons', 'com.spredfast.shade.apache.commons'
-	//relocate 'org.apache.http', 'com.spredfast.shade.apache.http'
-	//relocate 'org.joda', 'com.spredfast.shade.joda'
+	relocate 'com.amazonaws', 'com.spredfast.shade.amazonaws'
+	relocate 'com.fasterxml', 'com.spredfast.shade.fasterxml'
+	relocate 'org.apache.commons', 'com.spredfast.shade.apache.commons'
+	relocate 'org.apache.http', 'com.spredfast.shade.apache.http'
+	relocate 'org.joda', 'com.spredfast.shade.joda'
 }
 
 dependencies {

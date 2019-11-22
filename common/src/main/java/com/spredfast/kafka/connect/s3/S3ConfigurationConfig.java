@@ -34,10 +34,8 @@ import org.apache.kafka.common.utils.Utils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.apache.kafka.common.config.ConfigDef.Range.atLeast;
@@ -49,16 +47,7 @@ public class S3ConfigurationConfig extends HashMap<String, Object> {
 	}
 
 	// S3 Group
-	public static final String S3_BUCKET_CONFIG = "s3.bucket.name";
-
-	public static final String SSEA_CONFIG = "s3.ssea.name";
-	public static final String SSEA_DEFAULT = "";
-
-	public static final String SSE_CUSTOMER_KEY = "s3.sse.customer.key";
-	public static final Password SSE_CUSTOMER_KEY_DEFAULT = new Password(null);
-
-	public static final String SSE_KMS_KEY_ID_CONFIG = "s3.sse.kms.key.id";
-	public static final String SSE_KMS_KEY_ID_DEFAULT = "";
+	public static final String S3_BUCKET_CONFIG = "s3.bucket";
 
 	public static final String PART_SIZE_CONFIG = "s3.part.size";
 	public static final int PART_SIZE_DEFAULT = 25 * 1024 * 1024;
@@ -115,10 +104,6 @@ public class S3ConfigurationConfig extends HashMap<String, Object> {
 	public static final boolean HEADERS_USE_EXPECT_CONTINUE_DEFAULT =
 		ClientConfiguration.DEFAULT_USE_EXPECT_CONTINUE;
 
-	/**
-	 * Maximum back-off time when retrying failed requests.
-	 */
-	public static final int S3_RETRY_MAX_BACKOFF_TIME_MS = (int) TimeUnit.HOURS.toMillis(24);
 
 	public static final String S3_RETRY_BACKOFF_CONFIG = "s3.retry.backoff.ms";
 	public static final int S3_RETRY_BACKOFF_DEFAULT = 200;
@@ -192,53 +177,6 @@ public class S3ConfigurationConfig extends HashMap<String, Object> {
 				++orderInGroup,
 				Width.LONG,
 				"AWS Credentials Provider Class"
-			);
-
-			List<String> validSsea = new ArrayList<>(SSEAlgorithm.values().length + 1);
-			validSsea.add("");
-			for (SSEAlgorithm algo : SSEAlgorithm.values()) {
-				validSsea.add(algo.toString());
-			}
-			configDef.define(
-				SSEA_CONFIG,
-				Type.STRING,
-				SSEA_DEFAULT,
-				ConfigDef.ValidString.in(validSsea.toArray(new String[validSsea.size()])),
-				Importance.LOW,
-				"The S3 Server Side Encryption Algorithm.",
-				group,
-				++orderInGroup,
-				Width.LONG,
-				"S3 Server Side Encryption Algorithm",
-				new SseAlgorithmRecommender()
-			);
-
-			configDef.define(
-				SSE_CUSTOMER_KEY,
-				Type.PASSWORD,
-				SSE_CUSTOMER_KEY_DEFAULT,
-				Importance.LOW,
-				"The S3 Server Side Encryption Customer-Provided Key (SSE-C).",
-				group,
-				++orderInGroup,
-				Width.LONG,
-				"S3 Server Side Encryption Customer-Provided Key (SSE-C)"
-			);
-
-			configDef.define(
-				SSE_KMS_KEY_ID_CONFIG,
-				Type.STRING,
-				SSE_KMS_KEY_ID_DEFAULT,
-				Importance.LOW,
-				"The name of the AWS Key Management Service (AWS-KMS) key to be used for server side "
-					+ "encryption of the S3 objects. No encryption is used when no key is provided, but"
-					+ " it is enabled when '" + SSEAlgorithm.KMS + "' is specified as encryption "
-					+ "algorithm with a valid key name.",
-				group,
-				++orderInGroup,
-				Width.LONG,
-				"S3 Server Side Encryption Key",
-				new SseKmsKeyIdRecommender()
 			);
 
 			configDef.define(
@@ -565,43 +503,6 @@ public class S3ConfigurationConfig extends HashMap<String, Object> {
 		@Override
 		public String toString() {
 			return "Any class implementing: " + AWSCredentialsProvider.class;
-		}
-	}
-
-	private static class SseAlgorithmRecommender implements ConfigDef.Recommender {
-		@Override
-		public List<Object> validValues(String name, Map<String, Object> connectorConfigs) {
-			List<SSEAlgorithm> list = Arrays.asList(SSEAlgorithm.values());
-			return new ArrayList<Object>(list);
-		}
-
-		@Override
-		public boolean visible(String name, Map<String, Object> connectorConfigs) {
-			return true;
-		}
-	}
-
-	public static class SseKmsKeyIdRecommender implements ConfigDef.Recommender {
-		public SseKmsKeyIdRecommender() {
-		}
-
-		@Override
-		public List<Object> validValues(String name, Map<String, Object> connectorConfigs) {
-			return new LinkedList<>();
-		}
-
-		@Override
-		public boolean visible(String name, Map<String, Object> connectorConfigs) {
-			return SSEAlgorithm.KMS.toString()
-				.equalsIgnoreCase((String) connectorConfigs.get(SSEA_CONFIG));
-		}
-	}
-
-	private static void addAllConfigKeys(ConfigDef container, ConfigDef other, Set<String> skip) {
-		for (ConfigDef.ConfigKey key : other.configKeys().values()) {
-			if (skip != null && !skip.contains(key.name)) {
-				container.define(key);
-			}
 		}
 	}
 
