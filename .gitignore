@@ -2,5 +2,7 @@ build/
 local-*
 .idea
 *.iml
+*.ipr
+*.iws
 .gradle
 out
