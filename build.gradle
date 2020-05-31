@@ -3,13 +3,13 @@ buildscript {
 		jcenter()
 	}
 	dependencies {
-		classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.3'
-		classpath "io.codearte.gradle.nexus:gradle-nexus-staging-plugin:0.21.0"
+		classpath 'com.github.jengelman.gradle.plugins:shadow:5.2.0'
+		classpath "io.codearte.gradle.nexus:gradle-nexus-staging-plugin:0.21.2"
 	}
 }
 
 plugins {
-	id 'com.palantir.git-version' version '0.5.2'
+	id 'com.palantir.git-version' version '0.12.3'
 }
 
 apply plugin: 'java'
@@ -31,6 +31,12 @@ allprojects  {
 
 	repositories {
 		maven { url "https://repo.maven.apache.org/maven2" }
+	}
+
+	test {
+		beforeTest { descriptor ->
+			logger.lifecycle("Running test: " + descriptor)
+		}
 	}
 }
 

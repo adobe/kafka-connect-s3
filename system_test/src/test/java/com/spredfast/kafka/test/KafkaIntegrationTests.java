@@ -1,26 +1,40 @@
 package com.spredfast.kafka.test;
 
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.Config;
+import org.apache.kafka.clients.admin.ConfigEntry;
+import org.apache.kafka.clients.admin.CreateTopicsOptions;
+import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.common.config.ConfigResource;
+import org.apache.kafka.common.config.ConfigResource.Type;
 import org.apache.kafka.common.utils.SystemTime;
+import org.apache.kafka.common.utils.Time;
+import org.apache.kafka.connect.connector.policy.AllConnectorClientConfigOverridePolicy;
+import org.apache.kafka.connect.connector.policy.ConnectorClientConfigOverridePolicy;
 import org.apache.kafka.connect.runtime.Connect;
-import org.apache.kafka.connect.runtime.ConnectorFactory;
 import org.apache.kafka.connect.runtime.Herder;
 import org.apache.kafka.connect.runtime.Worker;
 import org.apache.kafka.connect.runtime.WorkerConfig;
+import org.apache.kafka.connect.runtime.isolation.Plugins;
 import org.apache.kafka.connect.runtime.rest.RestServer;
 import org.apache.kafka.connect.runtime.standalone.StandaloneConfig;
 import org.apache.kafka.connect.runtime.standalone.StandaloneHerder;
@@ -34,10 +48,8 @@ import com.google.common.io.Files;
 import com.netflix.curator.test.InstanceSpec;
 import com.netflix.curator.test.TestingServer;
 
-import kafka.admin.AdminUtils;
 import kafka.server.KafkaConfig;
 import kafka.server.KafkaServer;
-import kafka.utils.SystemTime$;
 import scala.Option;
 import scala.collection.JavaConversions;
 
@@ -119,8 +131,10 @@ public class KafkaIntegrationTests {
 
 	private static KafkaConnect givenKafkaConnect(Map<String, String> props) {
 		WorkerConfig config = new StandaloneConfig(props);
-		Worker worker = new Worker("1", new SystemTime(), new ConnectorFactory(), config, new FileOffsetBackingStore());
-		Herder herder = new StandaloneHerder(worker);
+		Plugins plugins = new Plugins(props);
+		ConnectorClientConfigOverridePolicy clientConfigOverridePolicy = new AllConnectorClientConfigOverridePolicy();
+		Worker worker = new Worker("1", new SystemTime(), plugins, config, new FileOffsetBackingStore(), clientConfigOverridePolicy);
+		Herder herder = new StandaloneHerder(worker, "test-cluster", clientConfigOverridePolicy);
 		RestServer restServer = new RestServer(config);
 		Connect connect = new Connect(herder, restServer);
 		connect.start();
@@ -157,6 +171,7 @@ public class KafkaIntegrationTests {
 	public static class Kafka implements AutoCloseable {
 		private final TestingServer zk;
 		private final KafkaServer kafkaServer;
+		private final AdminClient adminClient;
 
 		public Kafka() throws Exception {
 			zk = new TestingServer();
@@ -168,8 +183,12 @@ public class KafkaIntegrationTests {
 				.put("log.dir", tmpDir.getCanonicalPath())
 				.put("zookeeper.connect", zk.getConnectString())
 				.build(), Functions.toStringFunction()));
-			kafkaServer = new KafkaServer(config, SystemTime$.MODULE$, Option.empty(), JavaConversions.asScalaBuffer(ImmutableList.of()));
+			kafkaServer = new KafkaServer(config, Time.SYSTEM, Option.empty(), JavaConversions.asScalaBuffer(ImmutableList.of()));
 			kafkaServer.startup();
+
+			Properties adminClientProperties = new Properties();
+			adminClientProperties.put("bootstrap.servers", "localhost:" + config.get("port"));
+			adminClient = AdminClient.create(adminClientProperties);
 		}
 
 		public int localPort() {
@@ -183,28 +202,40 @@ public class KafkaIntegrationTests {
 			zk.close();
 		}
 
-		public String createUniqueTopic(String prefix) throws InterruptedException {
+		public String createUniqueTopic(String prefix) throws InterruptedException, ExecutionException {
 			return createUniqueTopic(prefix, 1);
 		}
 
-		public String createUniqueTopic(String prefix, int partitions) throws InterruptedException {
+		public String createUniqueTopic(String prefix, int partitions) throws InterruptedException, ExecutionException {
 			return createUniqueTopic(prefix, partitions, new Properties());
 		}
 
-		public String createUniqueTopic(String prefix, int partitions, Properties topicConfig) throws InterruptedException {
+		public String createUniqueTopic(String prefix, int partitions, Properties topicConfig) throws InterruptedException, ExecutionException {
 			checkReady();
 			String topic = (prefix + UUID.randomUUID().toString().substring(0, 5)).replaceAll("[^a-zA-Z0-9._-]", "_");
-			AdminUtils.createTopic(kafkaServer.zkUtils(), topic, partitions, 1, topicConfig, AdminUtils.createTopic$default$6());
-			waitForPassing(Duration.ofSeconds(5), () -> {
-				assertTrue(AdminUtils.fetchTopicMetadataFromZk(topic, kafkaServer.zkUtils())
-					.partitionMetadata().stream()
-					.allMatch(pm -> !pm.leader().isEmpty()));
-			});
+			NewTopic newTopic = new NewTopic(topic, partitions, (short) 1).configs(new HashMap(topicConfig));
+			adminClient.createTopics(Collections.singleton(newTopic), new CreateTopicsOptions().timeoutMs(5000));
+
+			adminClient.describeTopics(Collections.singleton(topic))
+				.values()
+				.get(topic)
+				.get()
+				.partitions()
+				.forEach(p -> assertNotNull(p.leader()));
+
 			return topic;
 		}
 
 		public void updateTopic(String topic, Properties topicConfig) {
-			AdminUtils.changeTopicConfig(kafkaServer.zkUtils(), topic, topicConfig);
+
+			ConfigResource configResource = new ConfigResource(Type.TOPIC, topic);
+			Collection<ConfigEntry> entries = topicConfig.entrySet()
+				.stream()
+				.map(entry -> new ConfigEntry((String) entry.getKey(), (String) entry.getValue()))
+				.collect(Collectors.toList());
+
+			Config config = new Config(entries);
+			adminClient.alterConfigs(Collections.singletonMap(configResource, config));
 		}
 
 		public void checkReady() throws InterruptedException {
@@ -212,7 +243,13 @@ public class KafkaIntegrationTests {
 		}
 
 		public void checkReady(Duration timeout) throws InterruptedException {
-			waitForPassing(timeout, () -> assertNotNull(kafkaServer.kafkaHealthcheck()));
+			waitForPassing(timeout, () -> {
+				try {
+					assertNotNull(adminClient.describeCluster().clusterId().get());
+				} catch (InterruptedException | ExecutionException exception) {
+					fail(exception.getMessage());
+				}
+			});
 		}
 	}
 

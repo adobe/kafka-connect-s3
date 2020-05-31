@@ -18,6 +18,7 @@ import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.TimeZone;
 
 import org.apache.kafka.common.TopicPartition;
 import org.junit.Before;
@@ -121,6 +122,7 @@ public class S3WriterTest {
 
 	private String getKeyForFilename(String prefix, String name) {
 		SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd");
+		df.setTimeZone(TimeZone.getTimeZone("UTC"));
 		return String.format("%s/%s/%s", prefix, df.format(new Date()), name);
 	}
 

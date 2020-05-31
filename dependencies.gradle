@@ -1,0 +1,61 @@
+ext {
+  versions = [:]
+  libraries = [:]
+}
+
+versions.awsSdkS3 = '1.11.791'
+versions.curatorTest = '1.2.6'
+versions.guava = '29.0-jre'
+versions.jackson = '2.10.4'
+versions.jakartaXml = '2.3.3'
+versions.junit = '4.13'
+versions.kafka = '2.5.0'
+versions.kafkaConnectApi = '2.5.0'
+versions.kafkaConnectRuntime = '2.5.0'
+versions.mockito = '3.3.0'
+versions.spotifyDockerClient = '8.16.0'
+
+libraries.awsSdkS3 = [
+  "com.amazonaws:aws-java-sdk-s3:$versions.awsSdkS3"
+]
+
+libraries.curatorTest = [
+  "com.netflix.curator:curator-test:$versions.curatorTest"
+]
+
+libraries.guava = [
+  "com.google.guava:guava:$versions.guava"
+]
+
+libraries.jackson = [
+  "com.fasterxml.jackson.core:jackson-databind:$versions.jackson"
+]
+
+libraries.jakartaXml = [
+  "jakarta.xml.bind:jakarta.xml.bind-api:$versions.jakartaXml"
+]
+
+libraries.junit = [
+  "junit:junit:$versions.junit"
+]
+
+libraries.kafka = [
+  "org.apache.kafka:kafka_2.12:$versions.kafka"
+]
+
+libraries.kafkaConnectApi = [
+  "org.apache.kafka:connect-api:$versions.kafkaConnectApi"
+]
+
+libraries.kafkaConnectRuntime = [
+  "org.apache.kafka:connect-runtime:$versions.kafkaConnectRuntime",
+  "org.apache.kafka:connect-json:$versions.kafkaConnectRuntime"
+]
+
+libraries.mockito = [
+  "org.mockito:mockito-core:$versions.mockito"
+]
+
+libraries.spotifyDockerClient = [
+  "com.spotify:docker-client:$versions.spotifyDockerClient"
+]

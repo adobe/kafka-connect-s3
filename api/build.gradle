@@ -1,5 +1,7 @@
+apply from: '../dependencies.gradle'
+
 description = ""
 
 dependencies {
-    compile group: 'org.apache.kafka', name: 'connect-api', version: '2.0.0'
+    compile libraries.kafkaConnectApi
 }
