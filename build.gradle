@@ -1,19 +1,9 @@
-buildscript {
-	repositories {
-		jcenter()
-	}
-	dependencies {
-		classpath 'com.github.jengelman.gradle.plugins:shadow:5.2.0'
-		classpath "io.codearte.gradle.nexus:gradle-nexus-staging-plugin:0.21.2"
-	}
-}
-
 plugins {
+	id 'java'
+	id 'maven-publish'
 	id 'com.palantir.git-version' version '0.12.3'
+	id 'com.github.johnrengelman.shadow' version '5.2.0'
 }
-
-apply plugin: 'java'
-apply plugin: 'io.codearte.nexus-staging'
 
 description = "kafka-connect-s3"
 
@@ -22,9 +12,7 @@ allprojects  {
     apply plugin: 'idea'
 
     group = 'com.spredfast.kafka.connect.s3'
-	// circle only builds tags, so don't worry if it thinks it is dirty and strip the leading v
-	version = versionDetails().lastTag.replaceAll(/^v/,'').replaceAll(/\.dirty$/, '')
-
+	version = System.getenv("PROJECT_VERSION") ?: "unspecified"
 	apply plugin: 'java'
 	sourceCompatibility = 1.8
 	targetCompatibility = 1.8
@@ -40,15 +28,12 @@ allprojects  {
 	}
 }
 
-apply plugin: "com.github.johnrengelman.shadow"
-
-
 shadowJar {
 	dependencies {
 		// provided in the connect classpath
-		exclude(dependency('org.apache.kafka:connect-api:2.0.0'))
-		exclude(dependency('org.apache.kafka:kafka-clients:2.0.0'))
-		exclude(dependency('net.jpountz.lz4:.*:.*'))
+		exclude(dependency('org.apache.kafka:connect-api'))
+		exclude(dependency('org.apache.kafka:kafka-clients'))
+		exclude(dependency('net.jpountz.lz4:lz4'))
 		exclude(dependency('org.xerial.snappy:.*:.*'))
 		exclude(dependency('org.slf4j:.*:.*'))
 	}
@@ -61,12 +46,27 @@ shadowJar {
 	relocate 'org.joda', 'com.spredfast.shade.joda'
 }
 
+publishing {
+	publications {
+		shadow(MavenPublication) { publication ->
+			project.shadow.component(publication)
+		}
+	}
+	repositories {
+		maven {
+			url "https://artifactory-uw2.adobeitc.com/artifactory/maven-experienceplatform-release"
+			credentials {
+				username = System.getenv("AWS_ARTIFACTORY_USER")
+				password = System.getenv("AWS_ARTIFACTORY_PASS")
+			}
+		}
+	}
+}
+
 dependencies {
 	compile project(':sink')
 	compile project(':source')
 }
-
-
 
 task javadocJar(type: Jar, dependsOn: javadoc) {
 	classifier = 'javadoc'
@@ -90,5 +90,3 @@ ext {
 	pomHumanName = 'Kafka Connect S3'
 	pomDesc = 'S3 Source and Sink Connectors for Kafka Connect'
 }
-
-apply from: 'upload.gradle'

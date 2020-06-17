@@ -48,5 +48,3 @@ task sourcesJar(type: Jar) {
 artifacts {
 	archives javadocJar, sourcesJar
 }
-
-apply from: '../../upload.gradle'
