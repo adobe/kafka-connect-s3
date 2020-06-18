@@ -1,0 +1,15 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ template "app.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+  {{- include "app.labels" $ | indent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app.fullName: {{ include "app.fullname" . }}
+  podMetricsEndpoints:
+    - port: "29092"
+      path: /prometheus
+

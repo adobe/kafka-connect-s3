@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "app.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "app.labels" $ | indent 4 }}
+spec:
+  replicas: {{ .Values.kafkaBackup.connect.workersCount }}
+  selector:
+    matchLabels:
+      app.fullName: {{ include "app.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app.fullName: {{ include "app.fullname" . }}
+        {{- include "app.labels" $ | indent 8 }}
+    spec:
+      initContainers:
+        - name: kafka-backup-libs
+          image: {{ .Values.kafkaBackup.image.backup.repository }}:{{.Values.kafkaBackup.image.backup.tag}}
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -cex
+            - cp -r /dependencies/* /backup-libs/
+          volumeMounts:
+            - name: kafka-backup-libs
+              mountPath: /backup-libs/
+      containers:
+        - name: kafka-connect
+          image: {{ .Values.kafkaBackup.image.kafka.repository }}:{{.Values.kafkaBackup.image.kafka.tag}}
+          imagePullPolicy: IfNotPresent
+          command:
+            - /opt/kafka/bin/connect-distributed.sh
+            - /etc/worker-config/backup-connect.properties
+          env:
+            - name: KAFKA_OPTS
+              value: -javaagent:/etc/kafka-backup-libs/javaagent/jmx_prometheus_javaagent.jar=9020:/etc/jmx-reporter-config/config.yaml
+            - name: KAFKA_HEAP_OPTS
+              value: -XX:InitialRAMPercentage=30 -XX:MaxRAMPercentage=70 -XX:MinRAMPercentage=70
+            - name: KAFKA_JVM_PERFORMANCE_OPTS
+              value: -server -XX:+UseG1GC -XX:MetaspaceSize=96m -XX:G1HeapRegionSize=16M -XX:MinMetaspaceFreeRatio=50
+                -XX:MaxMetaspaceFreeRatio=80 -XX:MaxGCPauseMillis=20 -XX:InitiatingHeapOccupancyPercent=35
+                -XX:+ExplicitGCInvokesConcurrent -Djava.awt.headless=true -Dsun.net.inetaddr.ttl=60
+                -Dlog4j.configuration=file:/etc/log4j-config/log4j.properties
+            - name: AWS_CREDENTIAL_PROFILES_FILE
+              value: /etc/aws/credentials
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - bash
+                  - -c
+                  - kill -s TERM 1
+          ports:
+            - name: connect-rest
+              containerPort: {{ .Values.kafkaBackup.connect.restPort }}
+              protocol: TCP
+            - name: metrics
+              containerPort: 9020
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.kafkaBackup.deployment.resources | nindent 12 }}
+          volumeMounts:
+            - name: kafka-backup-libs
+              mountPath: /etc/kafka-backup-libs
+            - name: worker-config
+              mountPath: /etc/worker-config
+            - name: log4j-config
+              mountPath: /etc/log4j-config
+            - name: jmx-reporter-config
+              mountPath: /etc/jmx-reporter-config
+            - name: aws-credentials
+              mountPath: /etc/aws
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 300
+            periodSeconds: 120
+            successThreshold: 1
+            timeoutSeconds: 90
+      imagePullSecrets:
+        - name: {{ .Values.kafkaBackup.image.pullSecret }}
+      volumes:
+        - name: kafka-backup-libs
+          emptyDir: {}
+        - name: jmx-reporter-config
+          configMap:
+            name: {{ include "app.name" . }}-jmx-config
+        - name: log4j-config
+          configMap:
+            name: {{ include "app.name" . }}-log4j-config
+        - name: worker-config
+          configMap:
+            name: {{ include "app.name" . }}-worker-config
+        - name: aws-credentials
+          secret:
+            secretName: {{ template "app.fullname" . }}
+---

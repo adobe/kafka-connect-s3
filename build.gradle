@@ -1,92 +1,187 @@
+import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
+import com.bmuschko.gradle.docker.tasks.image.DockerPushImage
+import com.github.jengelman.gradle.plugins.shadow.tasks.ConfigureShadowRelocation
+
+
 plugins {
-	id 'java'
-	id 'maven-publish'
-	id 'com.palantir.git-version' version '0.12.3'
-	id 'com.github.johnrengelman.shadow' version '5.2.0'
+  id 'base'
+  id 'java'
+  id 'maven-publish'
+  id 'com.palantir.git-version' version '0.12.3'
+  id 'com.github.johnrengelman.shadow' version '5.2.0'
+  id 'project-report'
+  id 'org.unbroken-dome.helm' version '1.1.1'
+  id 'org.unbroken-dome.helm-publish' version '1.1.1'
+  id 'com.bmuschko.docker-remote-api' version '6.4.0'
 }
 
 description = "kafka-connect-s3"
+apply from: 'dependencies.gradle'
 
-allprojects  {
-    apply plugin: 'maven'
-    apply plugin: 'idea'
+version = System.getenv("PROJECT_VERSION") ?: getProjectVersion()
 
-    group = 'com.spredfast.kafka.connect.s3'
-	version = System.getenv("PROJECT_VERSION") ?: "unspecified"
-	apply plugin: 'java'
-	sourceCompatibility = 1.8
-	targetCompatibility = 1.8
-
-	repositories {
-		maven { url "https://repo.maven.apache.org/maven2" }
-	}
-
-	test {
-		beforeTest { descriptor ->
-			logger.lifecycle("Running test: " + descriptor)
-		}
-	}
+ext {
+  pomHumanName = 'Kafka Connect S3'
+  pomDesc = 'S3 Source and Sink Connectors for Kafka Connect'
+  dockerRegistry = "docker-pipeline-release.dr-uw2.adobeitc.com"
+  baseDockerTag = "$dockerRegistry/kafka-s3-backup-libs"
 }
 
-shadowJar {
-	dependencies {
-		// provided in the connect classpath
-		exclude(dependency('org.apache.kafka:connect-api'))
-		exclude(dependency('org.apache.kafka:kafka-clients'))
-		exclude(dependency('net.jpountz.lz4:lz4'))
-		exclude(dependency('org.xerial.snappy:.*:.*'))
-		exclude(dependency('org.slf4j:.*:.*'))
-	}
+allprojects {
+  apply plugin: 'java'
+  apply plugin: 'idea'
+  apply plugin: 'maven'
 
-	// for things we directly depend on, repackage so we don't conflict with other connectors
-	relocate 'com.amazonaws', 'com.spredfast.shade.amazonaws'
-	relocate 'com.fasterxml', 'com.spredfast.shade.fasterxml'
-	relocate 'org.apache.commons', 'com.spredfast.shade.apache.commons'
-	relocate 'org.apache.http', 'com.spredfast.shade.apache.http'
-	relocate 'org.joda', 'com.spredfast.shade.joda'
+  group = 'com.spredfast.kafka.connect.s3'
+  sourceCompatibility = 1.8
+  targetCompatibility = 1.8
+
+  repositories {
+    maven { url "https://repo.maven.apache.org/maven2" }
+  }
+
+  test {
+    beforeTest { descriptor ->
+      logger.lifecycle("Running test: " + descriptor)
+    }
+  }
 }
 
-publishing {
-	publications {
-		shadow(MavenPublication) { publication ->
-			project.shadow.component(publication)
-		}
-	}
-	repositories {
-		maven {
-			url "https://artifactory-uw2.adobeitc.com/artifactory/maven-experienceplatform-release"
-			credentials {
-				username = System.getenv("AWS_ARTIFACTORY_USER")
-				password = System.getenv("AWS_ARTIFACTORY_PASS")
-			}
-		}
-	}
+configurations {
+  javaagent
 }
 
 dependencies {
-	compile project(':sink')
-	compile project(':source')
+  compile project(':sink')
+  compile project(':source')
+  javaagent libraries.javaagent
 }
 
 task javadocJar(type: Jar, dependsOn: javadoc) {
-	classifier = 'javadoc'
-	from subprojects*.tasks.javadoc.destinationDir
+  classifier = 'javadoc'
+  from subprojects*.tasks.javadoc.destinationDir
 }
 
 task sourcesJar(type: Jar) {
-	from subprojects*.sourceSets.main.allSource
-	classifier = 'sources'
+  from subprojects*.sourceSets.main.allSource
+  classifier = 'sources'
 }
 
 jar {
-	from subprojects*.sourceSets.main.output
+  from subprojects*.sourceSets.main.output
 }
 
 artifacts {
-	archives javadocJar, sourcesJar
+  archives javadocJar, sourcesJar
 }
 
-ext {
-	pomHumanName = 'Kafka Connect S3'
-	pomDesc = 'S3 Source and Sink Connectors for Kafka Connect'
+task libs {
+
+  dependsOn 'shadowJar'
+
+  doLast {
+    copy {
+      from(shadowJar)
+      into("$buildDir/dependencies/connectors")
+    }
+
+    copy {
+      from(configurations.compileClasspath)
+      into("$buildDir/dependencies/compile")
+    }
+
+    copy {
+      from(configurations.javaagent)
+      into("$buildDir/dependencies/javaagent")
+      rename("(jmx_prometheus_javaagent)-(.+)(\\.jar)", "${1}${3}")
+    }
+  }
+}
+
+shadowJar {
+  dependencies {
+    // provided in the connect classpath
+    exclude(dependency('org.apache.kafka:connect-api'))
+    exclude(dependency('org.apache.kafka:kafka-clients'))
+    exclude(dependency('org.lz4:lz4-java'))
+    exclude(dependency('org.xerial.snappy:.*:.*'))
+    exclude(dependency('org.slf4j:.*:.*'))
+  }
+  relocate 'com.amazonaws', 'com.spredfast.shade.amazonaws'
+  relocate 'com.fasterxml', 'com.spredfast.shade.fasterxml'
+  relocate 'org.apache.commons', 'com.spredfast.shade.apache.commons'
+  relocate 'org.apache.http', 'com.spredfast.shade.apache.http'
+  relocate 'org.joda', 'com.spredfast.shade.joda'
+}
+
+publishing {
+  publications {
+    shadow(MavenPublication) { publication ->
+      project.shadow.component(publication)
+    }
+  }
+  repositories {
+    maven {
+      url "https://artifactory-uw2.adobeitc.com/artifactory/maven-experienceplatform-release"
+      credentials {
+        username = System.getenv("AWS_ARTIFACTORY_USER")
+        password = System.getenv("AWS_ARTIFACTORY_PASS")
+      }
+    }
+  }
+}
+
+helm {
+  xdgCacheHome = file("$buildDir/helm/cache")
+
+  filtering.enabled = false
+
+  lint {
+    strict = false
+  }
+
+  charts {
+    pipeline {
+      chartName = "kafka-s3-backup"
+      sourceDir = file("$rootDir/helm/kafka-s3-backup")
+    }
+  }
+
+  publishing {
+    repositories {
+      custom {
+        url = uri('https://artifactory-uw2.adobeitc.com/artifactory/helm-pipeline-release')
+        uploadMethod = 'PUT'
+        uploadPath = '/{name}/{filename}'
+        credentials {
+          username = System.getenv("AWS_ARTIFACTORY_USER")
+          password = System.getenv("AWS_ARTIFACTORY_PASS")
+        }
+      }
+    }
+  }
+}
+
+docker {
+  registryCredentials {
+    url = dockerRegistry
+    username = System.getenv("AWS_ARTIFACTORY_USER")
+    password = System.getenv("AWS_ARTIFACTORY_PASS")
+  }
+}
+
+task dockerBuildImage(type: DockerBuildImage, dependsOn: 'libs') {
+  inputDir = file("$rootDir")
+  images = ["$baseDockerTag:$version"]
+}
+
+task dockerPushImage(type: DockerPushImage) {
+  images = ["$baseDockerTag:$version"]
+}
+
+
+def getProjectVersion() {
+  def tag = 'git describe --abbrev=0 --tags'.execute().text.trim()
+  def sha = 'git rev-parse --verify --short HEAD'.execute().text.trim()
+  return tag + '-' + sha
 }

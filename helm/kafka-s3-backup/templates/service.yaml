@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "app.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+  {{- include "app.labels" $ | indent 4 }}
+spec:
+  ports:
+    - name: kafka-connect
+      port: {{ .Values.kafkaBackup.connect.restPort }}
+  selector:
+    app.name: {{ template "app.name" . }}
+    app.release: {{ .Release.Name }}
