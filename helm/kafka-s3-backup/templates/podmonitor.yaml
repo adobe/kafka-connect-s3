@@ -1,3 +1,4 @@
+{{- if .Values.kafkaBackup.podmonitor.enabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
@@ -13,3 +14,4 @@ spec:
     - port: "29092"
       path: /prometheus
 
+{{- end -}}

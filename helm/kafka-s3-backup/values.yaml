@@ -39,6 +39,8 @@ kafkaBackup:
       repository: "adobe/kafka"
       tag: "2.12-2.5.0"
     backup:
-      repository: "docker-pipeline-release.dr-uw2.adobeitc.com/kafka-s3-backup-libs"
+      repository: "adobe/kafka-s3-backup-libs"
       tag: "0.0.1"
-    pullSecret: itc-docker-secret
+
+  podmonitor:
+    enabled: false

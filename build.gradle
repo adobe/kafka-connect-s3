@@ -23,8 +23,8 @@ version = System.getenv("PROJECT_VERSION") ?: getProjectVersion()
 ext {
   pomHumanName = 'Kafka Connect S3'
   pomDesc = 'S3 Source and Sink Connectors for Kafka Connect'
-  dockerRegistry = "docker-pipeline-release.dr-uw2.adobeitc.com"
-  baseDockerTag = "$dockerRegistry/kafka-s3-backup-libs"
+  dockerRegistry = "docker.io"
+  baseDockerTag = "$dockerRegistry/adobe/kafka-s3-backup-libs"
 }
 
 allprojects {
@@ -114,23 +114,6 @@ shadowJar {
   relocate 'org.joda', 'com.spredfast.shade.joda'
 }
 
-publishing {
-  publications {
-    shadow(MavenPublication) { publication ->
-      project.shadow.component(publication)
-    }
-  }
-  repositories {
-    maven {
-      url "https://artifactory-uw2.adobeitc.com/artifactory/maven-experienceplatform-release"
-      credentials {
-        username = System.getenv("AWS_ARTIFACTORY_USER")
-        password = System.getenv("AWS_ARTIFACTORY_PASS")
-      }
-    }
-  }
-}
-
 helm {
   xdgCacheHome = file("$buildDir/helm/cache")
 
@@ -150,12 +133,12 @@ helm {
   publishing {
     repositories {
       custom {
-        url = uri('https://artifactory-uw2.adobeitc.com/artifactory/helm-pipeline-release')
+        url = uri(System.getenv("HELM_REPO_URL") ?: "")
         uploadMethod = 'PUT'
         uploadPath = '/{name}/{filename}'
         credentials {
-          username = System.getenv("AWS_ARTIFACTORY_USER")
-          password = System.getenv("AWS_ARTIFACTORY_PASS")
+          username = System.getenv("HELM_REPO_USER")
+          password = System.getenv("HELM_REPO_PASS")
         }
       }
     }
@@ -165,8 +148,8 @@ helm {
 docker {
   registryCredentials {
     url = dockerRegistry
-    username = System.getenv("AWS_ARTIFACTORY_USER")
-    password = System.getenv("AWS_ARTIFACTORY_PASS")
+    username = System.getenv("DOCKER_REPO_USER")
+    password = System.getenv("DOCKER_REPO_PASS")
   }
 }
 
