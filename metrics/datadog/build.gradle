@@ -2,7 +2,7 @@ description = "Datadog Metrics Reporter for the Kafka Connect S3 Connector"
 
 dependencies {
 	compile project(':common')
-    compile group: 'org.coursera', name: 'metrics-datadog', version: '1.1.6'
+	compile group: 'org.coursera', name: 'metrics-datadog', version: '1.1.6'
 	compile 'com.google.guava:guava:18.0'
 
 	testCompile group: 'junit', name: 'junit', version: '4.12'
@@ -32,7 +32,6 @@ ext {
 	pomHumanName = 'Kafka Connect S3 Datadog Metrics Reporter'
 	pomDesc = 'Datadog Metrics Reporter for S3 Connectors for Kafka Connect'
 }
-
 
 
 task javadocJar(type: Jar, dependsOn: javadoc) {

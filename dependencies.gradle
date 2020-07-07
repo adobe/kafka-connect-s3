@@ -3,7 +3,7 @@ ext {
   libraries = [:]
 }
 
-versions.awsSdkS3 = '1.11.791'
+versions.awsSdkS3 = '1.11.803'
 versions.curatorTest = '1.2.6'
 versions.guava = '29.0-jre'
 versions.jackson = '2.10.4'
@@ -33,6 +33,10 @@ libraries.jackson = [
 
 libraries.jakartaXml = [
   "jakarta.xml.bind:jakarta.xml.bind-api:$versions.jakartaXml"
+]
+
+libraries.javaagent = [
+  "io.prometheus.jmx:jmx_prometheus_javaagent:0.13.0"
 ]
 
 libraries.junit = [
