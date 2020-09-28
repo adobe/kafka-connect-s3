@@ -7,7 +7,7 @@ Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 */}}
 {{- define "app.fullname" -}}
-{{- printf "%s-%s" .Chart.Name (lower .Values.kafkaBackup.clusterName) | trunc 63 | replace "_" "-" | trimSuffix "-" -}}
+{{- printf "%s-%s" .Chart.Name (lower .Release.Name) | trunc 63 | replace "_" "-" | trimSuffix "-" -}}
 {{- end -}}
 
 {{/* Generate basic release labels */}}

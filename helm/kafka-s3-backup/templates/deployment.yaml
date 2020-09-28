@@ -99,5 +99,5 @@ spec:
             name: {{ include "app.name" . }}-worker-config
         - name: aws-credentials
           secret:
-            secretName: {{ template "app.fullname" . }}
+            secretName: kafka-dr
 ---
