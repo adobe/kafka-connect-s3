@@ -93,7 +93,7 @@ task libs {
     copy {
       from(configurations.javaagent)
       into("$buildDir/dependencies/javaagent")
-      rename("(jmx_prometheus_javaagent)-(.+)(\\.jar)", "${1}${3}")
+      rename("(jmx_prometheus_javaagent)-(.+)(\\.jar)", '$1$3')
     }
   }
 }
