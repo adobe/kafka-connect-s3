@@ -23,8 +23,8 @@ version = System.getenv("PROJECT_VERSION") ?: getProjectVersion()
 ext {
   pomHumanName = 'Kafka Connect S3'
   pomDesc = 'S3 Source and Sink Connectors for Kafka Connect'
-  dockerRegistry = "docker.io"
-  baseDockerTag = "$dockerRegistry/adobe/kafka-s3-backup-libs"
+  dockerRegistry = "docker-pipeline-release.dr-uw2.adobeitc.com"
+  baseDockerTag = "$dockerRegistry/kafka-s3-backup-libs"
 }
 
 allprojects {
