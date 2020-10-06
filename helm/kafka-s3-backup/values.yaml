@@ -39,7 +39,7 @@ kafkaBackup:
       tag: "2.12-2.5.1"
     backup:
       repository: "docker-pipeline-release.dr-uw2.adobeitc.com/kafka-s3-backup-libs"
-      tag: "v0.4.3-43b2c39"
+      tag: "v0.4.3-f0cb2d5"
     pullSecret: itc-docker-secret
 
   podmonitor:
