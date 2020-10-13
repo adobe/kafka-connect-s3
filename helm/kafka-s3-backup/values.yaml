@@ -1,12 +1,11 @@
 kafkaBackup:
-  aws:
-    credentials: |
-      [default]
-      aws_access_key_id=KEY_ID_HERE
-      aws_secret_access_key=ACCESS_KEY_HERE
-      region=us-east-1
+  # aws:
+  #   credentials: |
+  #     [default]
+  #     aws_access_key_id=KEY_ID_HERE
+  #     aws_secret_access_key=ACCESS_KEY_HERE
+  #     region=us-east-1
 
-  clusterName: connect1
 
   connect:
     restPort: 8083
@@ -37,10 +36,11 @@ kafkaBackup:
   image:
     kafka:
       repository: "adobe/kafka"
-      tag: "2.12-2.5.0"
+      tag: "2.12-2.5.1"
     backup:
-      repository: "adobe/kafka-s3-backup-libs"
-      tag: "0.0.1"
+      repository: "docker-pipeline-release.dr-uw2.adobeitc.com/kafka-s3-backup-libs"
+      tag: "v0.4.3-f0cb2d5"
+    pullSecret: itc-docker-secret
 
   podmonitor:
     enabled: false
