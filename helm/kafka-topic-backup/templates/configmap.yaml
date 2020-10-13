@@ -1,0 +1,21 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-topic-backup-script
+  namespace: {{ .Release.Namespace }}
+  labels:
+   job.name: kafka-topic-backup-script
+data:
+{{ (.Files.Glob "scripts/kafka-topic-backup.py").AsConfig | indent 2 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-topic-backup-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+   job.name: kafka-topic-backup-config
+data:
+  kafka-topic-backup.yaml: |
+{{- toYaml .Values.kafkaTopicBackup.config | nindent 4 }}

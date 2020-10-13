@@ -1,0 +1,44 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "{{ include "kafka-topic-backup.fullname" . }}"
+  namespace: "{{ .Release.Namespace }}"
+  labels:
+   job.name: kafka-topic-backup
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      containers:
+        - name: kafka-topic-backup
+          image: {{ .Values.kafkaTopicBackup.image.repository }}:{{ .Values.kafkaTopicBackup.image.tag }}
+          imagePullPolicy: {{ .Values.kafkaTopicBackup.image.imagePullPolicy }}
+          env:
+          - name: CONNECT_URL
+            value: "{{.Values.kafkaTopicBackup.connectEndpoint}}"
+          command:
+          - "python3"
+          - "/tmp/scripts/kafka-topic-backup.py"
+          volumeMounts:
+          - name: kafka-topic-backup-script
+            mountPath: /tmp/scripts
+            readOnly: false
+          - name: kafka-topic-backup-config
+            mountPath: /tmp/config
+            readOnly: false
+
+      imagePullSecrets:
+        {{- range .Values.kafkaTopicBackup.imagePullSecrets }}
+      - name: {{ . | quote }}
+        {{- end }}
+      restartPolicy: Never
+      volumes:
+      - name: kafka-topic-backup-script
+        configMap:
+          name: kafka-topic-backup-script
+          defaultMode: 0555
+      - name: kafka-topic-backup-config
+        configMap:
+          name: kafka-topic-backup-config
+          defaultMode: 0555
