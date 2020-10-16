@@ -140,7 +140,7 @@ Charsets Tip: If using UTF-16, specify `UTF-16BE` or `UTF-16LE` to avoid includi
 
 ### Custom Format
 
-A custom [S3RecordFormat](https://github.com/spredfast/kafka-connect-s3/blob/master/api/src/main/java/com/spredfast/kafka/connect/s3/S3RecordFormat.java)
+A custom [S3RecordFormat](./api/src/main/java/com/spredfast/kafka/connect/s3/S3RecordFormat.java)
 can be specified by providing the class name:
 
 ```
@@ -176,6 +176,10 @@ These additional configs apply to the Source connector:
 | targetTopic.${original} | none | If you want the source to send records to an different topic than the original. e.g., targetTopic.foo=bar would send messages originally in topic foo to topic bar. |
 | s3.start.marker | `null` | [List-Object Marker](http://docs.aws.amazon.com/cli/latest/reference/s3api/list-objects.html#output). S3 object key or key prefix to start reading from. |
 
-## Contributing
+# Contributing
 
-Pull requests welcome! If you need ideas, check the issues for [open enhancements](https://github.com/spredfast/kafka-connect-s3/issues?q=is%3Aopen+is%3Aissue+label%3Aenhancement).
+Contributions are welcomed! Read the [Contributing Guide](./.github/CONTRIBUTING.md) for more information.
+
+# Licensing
+
+This project is licensed under the BSD License. See [LICENSE](LICENSE.md) for more information.
