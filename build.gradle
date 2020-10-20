@@ -162,7 +162,7 @@ task dockerBuildImage(type: DockerBuildImage, dependsOn: 'libs') {
   images = ["$baseDockerTag:$version"]
 }
 
-task dockerPushImage(type: DockerPushImage) {
+task dockerPushImage(type: DockerPushImage, dependsOn: dockerBuildImage) {
   images = ["$baseDockerTag:$version"]
 }
 
