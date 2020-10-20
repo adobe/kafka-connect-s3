@@ -34,7 +34,7 @@ version = System.getenv("PROJECT_VERSION") ?: getProjectVersion()
 ext {
   pomHumanName = 'Kafka Connect S3'
   pomDesc = 'S3 Source and Sink Connectors for Kafka Connect'
-  dockerRegistry = "docker-pipeline-release.dr-uw2.adobeitc.com"
+  dockerRegistry = System.getenv("DOCKER_REGISTRY_URL")
   baseDockerTag = "$dockerRegistry/kafka-s3-backup-libs"
 }
 
@@ -144,12 +144,12 @@ helm {
   publishing {
     repositories {
       custom {
-        url = uri(System.getenv("HELM_REPO_URL") ?: "")
+        url = uri(System.getenv("HELM_ARTIFACTORY_URL") ?: "")
         uploadMethod = 'PUT'
         uploadPath = '/{name}/{filename}'
         credentials {
-          username = System.getenv("HELM_REPO_USER")
-          password = System.getenv("HELM_REPO_PASS")
+          username = System.getenv("AWS_ARTIFACTORY_USER")
+          password = System.getenv("AWS_ARTIFACTORY_PASS")
         }
       }
     }
@@ -159,8 +159,8 @@ helm {
 docker {
   registryCredentials {
     url = dockerRegistry
-    username = System.getenv("DOCKER_REPO_USER")
-    password = System.getenv("DOCKER_REPO_PASS")
+    username = System.getenv("AWS_ARTIFACTORY_USER")
+    password = System.getenv("AWS_ARTIFACTORY_PASS")
   }
 }
 
